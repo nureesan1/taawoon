@@ -1,8 +1,7 @@
-
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
 import { Member } from '../types';
-import { Search, Plus, UserPlus, DollarSign, Pencil, Trash2, Wallet, Building2, MapPin, Coins, PiggyBank } from 'lucide-react';
+import { Search, Plus, UserPlus, DollarSign, Pencil, Trash2, Wallet, Building2, MapPin, Coins, PiggyBank, Calendar, Clock, FileText } from 'lucide-react';
 import { PaymentModal } from './PaymentModal';
 import { EditMemberModal } from './EditMemberModal';
 
@@ -51,8 +50,86 @@ export const StaffDashboard: React.FC = () => {
     shares: acc.shares + (m.accumulatedShares || 0)
   }), { housing: 0, land: 0, general: 0, savings: 0, shares: 0 });
 
+  // Calculate Today's Transactions
+  const todayDate = new Date().toISOString().split('T')[0];
+  const todayTransactions = members.flatMap(member => 
+    member.transactions
+      .filter(tx => tx.date === todayDate)
+      .map(tx => ({
+        ...tx,
+        memberName: member.name,
+        memberCode: member.memberCode
+      }))
+  ).sort((a, b) => b.timestamp - a.timestamp);
+
+  const todayTotalAmount = todayTransactions.reduce((sum, tx) => sum + tx.totalAmount, 0);
+
   return (
     <div className="space-y-6">
+
+      {/* Daily Summary Section */}
+      <div className="bg-white rounded-xl shadow-sm border border-indigo-100 overflow-hidden animate-in fade-in slide-in-from-top-4">
+        <div className="bg-indigo-50/50 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-indigo-100">
+            <div>
+                <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-indigo-600" />
+                    สรุปยอดรับชำระวันนี้
+                    <span className="text-sm font-normal text-slate-500 bg-white px-2 py-0.5 rounded-full border border-indigo-100 shadow-sm">
+                        {new Date().toLocaleDateString('th-TH', { dateStyle: 'long' })}
+                    </span>
+                </h2>
+                <p className="text-slate-500 text-sm mt-1">รายการที่บันทึกประจำวัน</p>
+            </div>
+            <div className="text-right">
+                <p className="text-xs text-slate-500 font-bold uppercase mb-1">ยอดรับรวมทั้งสิ้น</p>
+                <p className="text-3xl font-bold text-indigo-600">{formatTHB(todayTotalAmount)}</p>
+            </div>
+        </div>
+        
+        {todayTransactions.length > 0 ? (
+            <div className="overflow-x-auto max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-indigo-200">
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-50 text-slate-500 sticky top-0 shadow-sm">
+                        <tr>
+                            <th className="px-6 py-3 font-medium whitespace-nowrap">เวลา</th>
+                            <th className="px-6 py-3 font-medium whitespace-nowrap">สมาชิก</th>
+                            <th className="px-6 py-3 font-medium text-right whitespace-nowrap">ยอดเงิน</th>
+                            <th className="px-6 py-3 font-medium text-right whitespace-nowrap">ผู้บันทึก</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {todayTransactions.map(tx => (
+                            <tr key={tx.id} className="hover:bg-indigo-50/30 transition-colors">
+                                <td className="px-6 py-3 text-slate-500 flex items-center gap-2 whitespace-nowrap">
+                                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                    {new Date(tx.timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+                                </td>
+                                <td className="px-6 py-3 font-medium text-slate-700 whitespace-nowrap">
+                                    {tx.memberName} <span className="text-slate-400 font-normal text-xs">({tx.memberCode})</span>
+                                </td>
+                                <td className="px-6 py-3 text-right font-bold text-indigo-700 whitespace-nowrap">
+                                    {formatTHB(tx.totalAmount)}
+                                </td>
+                                <td className="px-6 py-3 text-right text-slate-500 text-xs whitespace-nowrap">
+                                    {tx.recordedBy}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        ) : (
+            <div className="p-8 text-center text-slate-400 flex flex-col items-center gap-2">
+                <FileText className="w-10 h-10 opacity-20" />
+                <p>ยังไม่มีรายการรับชำระเงินในวันนี้</p>
+            </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 mb-2 mt-6">
+         <h2 className="text-lg font-bold text-slate-700">ภาพรวมสถานะการเงิน (Financial Status)</h2>
+         <div className="h-px bg-slate-200 flex-1"></div>
+      </div>
       
       {/* Top Summary Section */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 animate-in fade-in slide-in-from-top-4">

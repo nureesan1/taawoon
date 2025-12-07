@@ -1,7 +1,8 @@
+
 import React from 'react';
 import { useStore } from '../context/StoreContext';
 import { StatCard } from '../components/StatCard';
-import { Wallet, Landmark, TrendingDown, PiggyBank, History, FileText, Home, MapPin, Coins } from 'lucide-react';
+import { Wallet, Landmark, TrendingDown, PiggyBank, History, FileText, Home, MapPin, Coins, CalendarCheck } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 
 export const MemberDashboard: React.FC = () => {
@@ -24,9 +25,40 @@ export const MemberDashboard: React.FC = () => {
     return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(num);
   };
 
+  // Calculate Debt Paid This Year
+  const currentYear = new Date().getFullYear();
+  const currentYearThai = currentYear + 543;
+  
+  const debtPaidThisYear = member.transactions.reduce((acc, tx) => {
+    const txYear = new Date(tx.date).getFullYear();
+    // Sum only debt related payments (Housing + Land + General Loan)
+    if (txYear === currentYear) {
+        return acc + (tx.housing || 0) + (tx.land || 0) + (tx.generalLoan || 0);
+    }
+    return acc;
+  }, 0);
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-2">
+      
+      {/* New: Yearly Debt Repayment Summary */}
+      <div className="grid grid-cols-1">
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-md p-6 text-white flex items-center justify-between transition-transform hover:-translate-y-1">
+            <div>
+                <p className="text-blue-100 font-medium mb-1 flex items-center gap-2 text-sm">
+                <CalendarCheck className="w-4 h-4" />
+                ยอดชำระหนี้สะสม ปี {currentYearThai}
+                </p>
+                <h3 className="text-3xl font-bold">{formatTHB(debtPaidThisYear)}</h3>
+                <p className="text-xs text-blue-200 mt-2 opacity-80">รวมค่าบ้าน, ค่าที่ดิน, และสินเชื่อทั่วไปที่ชำระแล้วในปีนี้</p>
+            </div>
+            <div className="p-4 bg-white/10 rounded-full backdrop-blur-sm">
+                <TrendingDown className="w-8 h-8 text-white" />
+            </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 mb-2 mt-2">
          <h2 className="text-lg font-bold text-slate-700">ภาระหนี้สิน (Liabilities)</h2>
          <div className="h-px bg-slate-200 flex-1"></div>
       </div>
