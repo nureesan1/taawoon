@@ -17,18 +17,18 @@ export const RecordPayment: React.FC = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Form Data
+  // Form Data - Using strings to support better input experience (decimals, large numbers)
   const [formData, setFormData] = useState({
-    land: 0,        // 1. ค่าที่ดิน
-    housing: 0,     // 2. ค่าบ้าน
-    shares: 0,      // 3. ค่าหุ้น
-    savings: 0,     // 4. เงินฝาก
-    welfare: 0,     // 5. สวัสดิการ
-    insurance: 0,   // 6. ประกันดินบ้าน
-    donation: 0,    // 7. บริจาคบริหาร
-    generalLoan: 0, // 8. สินเชื่อทั่วไป
-    others: 0,      // 9. อื่นๆ
-    othersNote: ''  // รายละเอียดอื่นๆ
+    land: '',
+    housing: '',
+    shares: '',
+    savings: '',
+    welfare: '',
+    insurance: '',
+    donation: '',
+    generalLoan: '',
+    others: '',
+    othersNote: ''
   });
 
   // Filter Members for Dropdown
@@ -60,16 +60,24 @@ export const RecordPayment: React.FC = () => {
   const handleChange = (field: keyof typeof formData, value: string) => {
     if (field === 'othersNote') {
         setFormData(prev => ({ ...prev, [field]: value }));
-    } else {
-        const numValue = parseFloat(value) || 0;
-        setFormData(prev => ({ ...prev, [field]: numValue }));
+        return;
+    }
+    
+    // Validate number format (allow digits and one decimal point)
+    // This allows typing "100." or large numbers without browser constraints
+    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+        setFormData(prev => ({ ...prev, [field]: value }));
     }
   };
 
-  const totalAmount = (Object.entries(formData)
+  const getNumericValue = (val: string) => {
+    const num = parseFloat(val);
+    return isNaN(num) ? 0 : num;
+  };
+
+  const totalAmount = Object.entries(formData)
     .filter(([key]) => key !== 'othersNote')
-    .map(([, val]) => val) as number[])
-    .reduce((a, b) => a + b, 0);
+    .reduce((sum, [, val]) => sum + getNumericValue(val as string), 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,7 +95,16 @@ export const RecordPayment: React.FC = () => {
     const success = await addTransaction({
       memberId: selectedMember.id,
       date: transactionDate,
-      ...formData,
+      land: getNumericValue(formData.land),
+      housing: getNumericValue(formData.housing),
+      shares: getNumericValue(formData.shares),
+      savings: getNumericValue(formData.savings),
+      welfare: getNumericValue(formData.welfare),
+      insurance: getNumericValue(formData.insurance),
+      donation: getNumericValue(formData.donation),
+      generalLoan: getNumericValue(formData.generalLoan),
+      others: getNumericValue(formData.others),
+      othersNote: formData.othersNote,
       totalAmount,
       recordedBy: currentUser?.name || 'Unknown'
     });
@@ -96,13 +113,13 @@ export const RecordPayment: React.FC = () => {
         setIsSuccess(true);
         setTimeout(() => {
             setIsSuccess(false);
-            // Reset Form but keep Date? Or reset all? Let's reset member and amounts.
+            // Reset Form
             setSelectedMember(null);
             setSearchQuery('');
             setFormData({
-                land: 0, housing: 0, shares: 0, savings: 0, 
-                welfare: 0, insurance: 0, donation: 0, generalLoan: 0,
-                others: 0, othersNote: ''
+                land: '', housing: '', shares: '', savings: '', 
+                welfare: '', insurance: '', donation: '', generalLoan: '',
+                others: '', othersNote: ''
             });
         }, 2000);
     }
@@ -110,33 +127,38 @@ export const RecordPayment: React.FC = () => {
 
   const formatTHB = (num: number) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(num);
 
-  const InputField = ({ label, field, color = "slate", placeholder = "0.00" }: { label: string, field: keyof typeof formData, color?: string, placeholder?: string }) => (
-    <div className="space-y-1">
-      <label className="text-xs font-semibold text-slate-500 uppercase">{label}</label>
-      {field === 'othersNote' ? (
-         <input
-            type="text"
-            className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-200 focus:border-teal-500 outline-none transition-all"
-            value={formData.othersNote}
-            onChange={(e) => handleChange(field, e.target.value)}
-            placeholder={placeholder}
-        />
-      ) : (
-        <div className="relative">
-            <input
-            type="number"
-            min="0"
-            className={`w-full p-3 pl-3 pr-10 border rounded-lg focus:ring-2 focus:outline-none transition-all font-medium
-                ${(formData[field as keyof typeof formData] as number) > 0 ? `border-${color}-500 bg-${color}-50 ring-${color}-200 text-${color}-700` : 'border-slate-200 focus:border-teal-500 focus:ring-teal-200 text-slate-700'}`}
-            value={(formData[field as keyof typeof formData] as number) === 0 ? '' : formData[field as keyof typeof formData]}
-            onChange={(e) => handleChange(field, e.target.value)}
-            placeholder={placeholder}
+  const InputField = ({ label, field, color = "slate", placeholder = "0.00" }: { label: string, field: keyof typeof formData, color?: string, placeholder?: string }) => {
+    const value = formData[field];
+    const isFilled = field !== 'othersNote' && getNumericValue(value as string) > 0;
+
+    return (
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-slate-500 uppercase">{label}</label>
+          {field === 'othersNote' ? (
+             <input
+                type="text"
+                className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-200 focus:border-teal-500 outline-none transition-all"
+                value={value}
+                onChange={(e) => handleChange(field, e.target.value)}
+                placeholder={placeholder}
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">฿</span>
+          ) : (
+            <div className="relative">
+                <input
+                type="text"
+                inputMode="decimal"
+                className={`w-full p-3 pl-3 pr-10 border rounded-lg focus:ring-2 focus:outline-none transition-all font-medium
+                    ${isFilled ? `border-${color}-500 bg-${color}-50 ring-${color}-200 text-${color}-700` : 'border-slate-200 focus:border-teal-500 focus:ring-teal-200 text-slate-700'}`}
+                value={value}
+                onChange={(e) => handleChange(field, e.target.value)}
+                placeholder={placeholder}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">฿</span>
+            </div>
+          )}
         </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   if (isSuccess) {
     return (
