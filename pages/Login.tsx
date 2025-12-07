@@ -44,13 +44,6 @@ export const Login: React.FC = () => {
     }
   }
 
-  // For Demo purposes: helper to fill existing ID
-  const fillDemoId = () => {
-    if (members[0]?.personalInfo?.idCard) {
-      setIdCardInput(members[0].personalInfo.idCard);
-    }
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-500 to-cyan-700 p-4">
       <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row">
@@ -109,10 +102,6 @@ export const Login: React.FC = () => {
                 >
                   เข้าใช้งาน
                   <ArrowRight className="w-4 h-4" />
-                </button>
-
-                <button onClick={fillDemoId} className="text-xs text-teal-500 underline text-center w-full mt-2 hover:text-teal-600">
-                  ใช้เลขบัตรทดสอบ (Demo)
                 </button>
               </div>
             </div>
