@@ -4,7 +4,7 @@ import { Member, Transaction, UserRole, AppConfig } from '../types';
 import { MOCK_MEMBERS } from '../constants';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 
-type AppView = 'dashboard' | 'register_member' | 'member_profile' | 'settings' | 'record_payment';
+type AppView = 'dashboard' | 'register_member' | 'member_management' | 'member_profile' | 'settings' | 'record_payment';
 
 interface StoreContextType {
   members: Member[];

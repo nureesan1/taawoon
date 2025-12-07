@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { StoreProvider, useStore } from './context/StoreContext';
 import { Layout } from './components/Layout';
@@ -8,6 +9,7 @@ import { RegisterMember } from './pages/RegisterMember';
 import { MemberProfile } from './pages/MemberProfile';
 import { RecordPayment } from './pages/RecordPayment';
 import { Settings } from './pages/Settings';
+import { MemberManagement } from './pages/MemberManagement';
 import { UserRole } from './types';
 
 const AppContent: React.FC = () => {
@@ -28,6 +30,7 @@ const AppContent: React.FC = () => {
       {currentUser.role === UserRole.STAFF && currentView === 'register_member' && <RegisterMember />}
       {currentUser.role === UserRole.STAFF && currentView === 'record_payment' && <RecordPayment />}
       {currentUser.role === UserRole.STAFF && currentView === 'settings' && <Settings />}
+      {currentUser.role === UserRole.STAFF && currentView === 'member_management' && <MemberManagement />}
     </Layout>
   );
 };
