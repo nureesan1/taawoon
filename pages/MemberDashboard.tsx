@@ -16,9 +16,9 @@ export const MemberDashboard: React.FC = () => {
   const totalDebt = member.housingLoanBalance + member.landLoanBalance + member.generalLoanBalance;
   
   const debtData = [
-    { name: 'หนี้ค่าบ้าน', value: member.housingLoanBalance, color: '#ef4444' }, // red-500
-    { name: 'หนี้ค่าที่ดิน', value: member.landLoanBalance, color: '#f97316' }, // orange-500
-    { name: 'สินเชื่อทั่วไป', value: member.generalLoanBalance, color: '#f59e0b' }, // amber-500
+    { name: 'หนี้ค่าบ้าน', value: member.housingLoanBalance, color: '#ef4444' }, 
+    { name: 'หนี้ค่าที่ดิน', value: member.landLoanBalance, color: '#f97316' }, 
+    { name: 'สินเชื่อทั่วไป', value: member.generalLoanBalance, color: '#f59e0b' }, 
   ].filter(d => d.value > 0);
 
   const formatTHB = (num: number) => {
@@ -38,8 +38,6 @@ export const MemberDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      
-      {/* Yearly Debt Repayment Summary */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-md p-6 text-white flex items-center justify-between transition-transform hover:-translate-y-1">
             <div>
@@ -55,7 +53,6 @@ export const MemberDashboard: React.FC = () => {
             </div>
         </div>
 
-        {/* Loan Term Status Card */}
         <div className={`rounded-xl shadow-md p-6 flex items-center justify-between transition-transform hover:-translate-y-1 border ${member.missedInstallments > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-100'}`}>
             <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
@@ -139,33 +136,6 @@ export const MemberDashboard: React.FC = () => {
                    ))}
                </div>
             </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col h-full">
-           <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><History className="w-5 h-5 text-teal-600" /> รายการเคลื่อนไหวล่าสุด</h3>
-          <div className="flex-1 overflow-y-auto pr-2 space-y-3 max-h-[400px] scrollbar-thin scrollbar-thumb-slate-200">
-            {member.transactions.length === 0 && (
-                <div className="flex flex-col items-center justify-center h-full text-slate-400 text-sm">
-                    <History className="w-8 h-8 mb-2 opacity-50" />
-                    ยังไม่มีรายการบันทึก
-                </div>
-            )}
-            {member.transactions.slice(0, 10).map((tx) => (
-              <div key={tx.id} className="border-b border-slate-100 last:border-0 pb-3 group hover:bg-slate-50 p-2 rounded-lg transition-colors">
-                 <div className="flex justify-between items-start mb-1">
-                    <span className="text-xs text-slate-400 font-medium">{new Date(tx.timestamp).toLocaleDateString('th-TH')}</span>
-                    <span className="text-sm font-bold text-teal-600">+{formatTHB(tx.totalAmount)}</span>
-                 </div>
-                 <div className="text-xs text-slate-500 space-y-1 mt-1">
-                    {tx.housing > 0 && <div className="flex justify-between items-center bg-red-50/50 px-2 py-0.5 rounded text-red-700"><span>ค่าบ้าน</span><span>{formatTHB(tx.housing)}</span></div>}
-                    {tx.land > 0 && <div className="flex justify-between items-center bg-orange-50/50 px-2 py-0.5 rounded text-orange-700"><span>ค่าที่ดิน</span><span>{formatTHB(tx.land)}</span></div>}
-                    {tx.generalLoan > 0 && <div className="flex justify-between items-center bg-amber-50/50 px-2 py-0.5 rounded text-amber-700"><span>สินเชื่อ</span><span>{formatTHB(tx.generalLoan)}</span></div>}
-                    {tx.shares > 0 && <div className="flex justify-between items-center bg-teal-50/50 px-2 py-0.5 rounded text-teal-700"><span>ค่าหุ้น</span><span>{formatTHB(tx.shares)}</span></div>}
-                    {tx.savings > 0 && <div className="flex justify-between items-center bg-emerald-50/50 px-2 py-0.5 rounded text-emerald-700"><span>ฝากเงิน</span><span>{formatTHB(tx.savings)}</span></div>}
-                 </div>
-              </div>
-            ))}
           </div>
         </div>
       </div>

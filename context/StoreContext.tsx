@@ -41,7 +41,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  // Helper to call GAS API
   const callApi = async (action: string, payload: any = {}) => {
     if (!config.scriptUrl) throw new Error("Script URL not configured");
     
@@ -56,9 +55,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const refreshData = useCallback(async () => {
-    if (!config.useGoogleSheets || !config.scriptUrl) {
-        return;
-    }
+    if (!config.useGoogleSheets || !config.scriptUrl) return;
 
     setIsLoading(true);
     try {
@@ -73,7 +70,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   }, [config]);
 
-  // Initial Data Load
   useEffect(() => {
     refreshData();
   }, [refreshData]);
@@ -100,9 +96,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return members.find(m => m.id === id);
   }, [members]);
 
-  const generateId = () => {
-    return Date.now().toString() + Math.random().toString(36).substr(2, 6);
-  };
+  const generateId = () => Date.now().toString() + Math.random().toString(36).substr(2, 6);
 
   const addTransaction = async (txData: Omit<Transaction, 'id' | 'timestamp'>) => {
     const newTx: Transaction = {
@@ -112,30 +106,20 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     };
 
     const prevMembers = [...members];
-    const updateLocal = () => {
-        setMembers(currentMembers => currentMembers.map(member => {
-            if (member.id !== txData.memberId) return member;
-
-            const newHousingBalance = Math.max(0, member.housingLoanBalance - txData.housing);
-            const newLandBalance = Math.max(0, member.landLoanBalance - txData.land);
-            const newGeneralBalance = Math.max(0, member.generalLoanBalance - txData.generalLoan);
-            
-            const newShares = member.accumulatedShares + txData.shares;
-            const newSavings = member.savingsBalance + txData.savings;
-
-            return {
-                ...member,
-                housingLoanBalance: newHousingBalance,
-                landLoanBalance: newLandBalance,
-                generalLoanBalance: newGeneralBalance,
-                accumulatedShares: newShares,
-                savingsBalance: newSavings,
-                transactions: [newTx, ...member.transactions]
-            };
-        }));
-    };
-
-    updateLocal();
+    
+    // Optimistic UI Update
+    setMembers(currentMembers => currentMembers.map(member => {
+        if (member.id !== txData.memberId) return member;
+        return {
+            ...member,
+            housingLoanBalance: Math.max(0, member.housingLoanBalance - txData.housing),
+            landLoanBalance: Math.max(0, member.landLoanBalance - txData.land),
+            generalLoanBalance: Math.max(0, member.generalLoanBalance - txData.generalLoan),
+            accumulatedShares: member.accumulatedShares + txData.shares,
+            savingsBalance: member.savingsBalance + txData.savings,
+            transactions: [newTx, ...member.transactions]
+        };
+    }));
 
     if (config.useGoogleSheets) {
         setIsLoading(true);
@@ -161,71 +145,64 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       transactions: []
     };
 
+    setIsLoading(true);
     if (config.useGoogleSheets) {
         try {
             await callApi('addMember', { member: newMember });
+            await refreshData();
             return true;
         } catch (error) {
             console.error(error);
+            alert("บันทึกข้อมูลสมาชิกล้มเหลว");
             return false;
+        } finally {
+            setIsLoading(false);
         }
     } else {
         setMembers(prev => [newMember, ...prev]);
+        setIsLoading(false);
         return true;
     }
   };
 
   const updateMember = async (id: string, data: Partial<Member>) => {
-    const prevMembers = [...members];
-    
-    setMembers(prev => prev.map(m => {
-      if (m.id !== id) return m;
-      
-      const updated = { ...m, ...data };
-      if (data.personalInfo && m.personalInfo) {
-        updated.personalInfo = { ...m.personalInfo, ...data.personalInfo };
-      }
-      return updated;
-    }));
-
-    if (currentUser?.memberId === id && data.name) {
-      setCurrentUser(prev => prev ? { ...prev, name: data.name } : null);
-    }
-
     if (config.useGoogleSheets) {
+        setIsLoading(true);
         try {
             await callApi('updateMember', { id, data });
+            await refreshData();
             return true;
         } catch (error) {
             console.error(error);
             alert("อัปเดตข้อมูลล้มเหลว");
-            setMembers(prevMembers);
             return false;
+        } finally {
+            setIsLoading(false);
         }
+    } else {
+        setMembers(prev => prev.map(m => (m.id === id ? { ...m, ...data } : m)));
+        return true;
     }
-    return true;
   };
 
   const deleteMember = async (id: string) => {
-    const prevMembers = [...members];
-    
-    setMembers(prev => prev.filter(m => m.id !== id));
-
     if (config.useGoogleSheets) {
       setIsLoading(true);
       try {
         await callApi('deleteMember', { id });
+        await refreshData();
         return true;
       } catch (error) {
         console.error(error);
         alert("ลบข้อมูลล้มเหลว");
-        setMembers(prevMembers);
         return false;
       } finally {
         setIsLoading(false);
       }
+    } else {
+        setMembers(prev => prev.filter(m => m.id !== id));
+        return true;
     }
-    return true;
   };
 
   const updateConfig = (newConfig: AppConfig) => {
@@ -259,8 +236,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
 export const useStore = () => {
   const context = useContext(StoreContext);
-  if (!context) {
-    throw new Error('useStore must be used within a StoreProvider');
-  }
+  if (!context) throw new Error('useStore must be used within a StoreProvider');
   return context;
 };

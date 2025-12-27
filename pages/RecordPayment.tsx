@@ -17,7 +17,7 @@ export const RecordPayment: React.FC = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Form Data - Using strings to support better input experience (decimals, large numbers)
+  // Form Data
   const [formData, setFormData] = useState({
     land: '',
     housing: '',
@@ -33,14 +33,13 @@ export const RecordPayment: React.FC = () => {
 
   // Filter Members for Dropdown
   const filteredMembers = searchQuery.trim() === '' 
-    ? members.slice(0, 10) // Show first 10 if empty
+    ? members.slice(0, 10) 
     : members.filter(m => 
         m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
         m.memberCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
         m.personalInfo?.idCard?.includes(searchQuery)
       );
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -62,8 +61,6 @@ export const RecordPayment: React.FC = () => {
         setFormData(prev => ({ ...prev, [field]: value }));
         return;
     }
-    
-    // Validate number format (allow digits and one decimal point)
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
         setFormData(prev => ({ ...prev, [field]: value }));
     }
@@ -112,7 +109,6 @@ export const RecordPayment: React.FC = () => {
         setIsSuccess(true);
         setTimeout(() => {
             setIsSuccess(false);
-            // Reset Form
             setSelectedMember(null);
             setSearchQuery('');
             setFormData({
@@ -166,7 +162,7 @@ export const RecordPayment: React.FC = () => {
                 <CheckCircle2 className="w-16 h-16 text-green-600" />
             </div>
             <h2 className="text-3xl font-bold text-slate-800 mb-2">บันทึกเรียบร้อย</h2>
-            <p className="text-red-600 text-lg font-bold">ยอดเงิน {formatTHB(totalAmount)}</p>
+            <p className="text-red-600 text-3xl font-bold">ยอดเงิน {formatTHB(totalAmount)}</p>
         </div>
     );
   }
@@ -179,8 +175,6 @@ export const RecordPayment: React.FC = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        
-        {/* Card 1: Member & Date Selection */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 grid grid-cols-1 md:grid-cols-2 gap-6 relative z-20">
             <div className="space-y-2 relative" ref={dropdownRef}>
                 <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
@@ -203,7 +197,6 @@ export const RecordPayment: React.FC = () => {
                     <Search className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <ChevronDown className={`w-5 h-5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                 </div>
-
                 {isDropdownOpen && (
                     <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-100 max-h-60 overflow-y-auto z-50">
                         {filteredMembers.length > 0 ? (
@@ -227,7 +220,6 @@ export const RecordPayment: React.FC = () => {
                     </div>
                 )}
             </div>
-
             <div className="space-y-2">
                 <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-teal-600" />
@@ -243,7 +235,6 @@ export const RecordPayment: React.FC = () => {
             </div>
         </div>
 
-        {/* Card 2: Payment Form */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
             <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                 <h2 className="font-bold text-slate-700">รายการชำระเงิน</h2>
@@ -253,7 +244,6 @@ export const RecordPayment: React.FC = () => {
                     </div>
                 )}
             </div>
-
             <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                 <InputField label="1. ค่าที่ดิน (Land)" field="land" color="red" />
                 <InputField label="2. ค่าบ้าน (Housing)" field="housing" color="red" />
@@ -268,7 +258,6 @@ export const RecordPayment: React.FC = () => {
                     <InputField label="รายละเอียด (ระบุค่าใช้จ่าย)" field="othersNote" placeholder="เช่น ค่าธรรมเนียมแรกเข้า" />
                 </div>
             </div>
-            
             <div className="bg-slate-800 text-white p-6 flex flex-col md:flex-row items-center justify-between gap-4">
                 <div>
                     <p className="text-slate-400 text-xs uppercase font-bold tracking-wider">ยอดรวมสุทธิ</p>
