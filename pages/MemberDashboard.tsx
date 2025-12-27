@@ -2,7 +2,7 @@
 import React from 'react';
 import { useStore } from '../context/StoreContext';
 import { StatCard } from '../components/StatCard';
-import { Wallet, Landmark, TrendingDown, PiggyBank, History, FileText, Home, MapPin, Coins, CalendarCheck } from 'lucide-react';
+import { Wallet, Landmark, TrendingDown, PiggyBank, History, FileText, Home, MapPin, Coins, CalendarCheck, AlertCircle, Info } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 
 export const MemberDashboard: React.FC = () => {
@@ -25,13 +25,11 @@ export const MemberDashboard: React.FC = () => {
     return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(num);
   };
 
-  // Calculate Debt Paid This Year
   const currentYear = new Date().getFullYear();
   const currentYearThai = currentYear + 543;
   
   const debtPaidThisYear = member.transactions.reduce((acc, tx) => {
     const txYear = new Date(tx.date).getFullYear();
-    // Sum only debt related payments (Housing + Land + General Loan)
     if (txYear === currentYear) {
         return acc + (tx.housing || 0) + (tx.land || 0) + (tx.generalLoan || 0);
     }
@@ -41,8 +39,8 @@ export const MemberDashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       
-      {/* New: Yearly Debt Repayment Summary */}
-      <div className="grid grid-cols-1">
+      {/* Yearly Debt Repayment Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-md p-6 text-white flex items-center justify-between transition-transform hover:-translate-y-1">
             <div>
                 <p className="text-blue-100 font-medium mb-1 flex items-center gap-2 text-sm">
@@ -56,6 +54,29 @@ export const MemberDashboard: React.FC = () => {
                 <TrendingDown className="w-8 h-8 text-white" />
             </div>
         </div>
+
+        {/* Loan Term Status Card */}
+        <div className={`rounded-xl shadow-md p-6 flex items-center justify-between transition-transform hover:-translate-y-1 border ${member.missedInstallments > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-100'}`}>
+            <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <p className={`font-bold text-sm ${member.missedInstallments > 0 ? 'text-red-700' : 'text-slate-500'}`}>สถานะงวดชำระ</p>
+                  {member.missedInstallments > 0 && <span className="bg-red-600 text-white text-[10px] px-2 py-0.5 rounded-full animate-pulse">ค้างชำระ</span>}
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-slate-400">ยอดชำระต่องวด</p>
+                    <p className="text-xl font-bold text-red-600">{formatTHB(member.monthlyInstallment || 0)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400">ผิดนัดสะสม</p>
+                    <p className="text-xl font-bold text-red-600">{member.missedInstallments || 0} งวด</p>
+                  </div>
+                </div>
+            </div>
+            <div className={`p-4 rounded-full ${member.missedInstallments > 0 ? 'bg-red-100' : 'bg-slate-50'}`}>
+                {member.missedInstallments > 0 ? <AlertCircle className="w-8 h-8 text-red-600" /> : <Info className="w-8 h-8 text-teal-600" />}
+            </div>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 mb-2 mt-2">
@@ -63,26 +84,10 @@ export const MemberDashboard: React.FC = () => {
          <div className="h-px bg-slate-200 flex-1"></div>
       </div>
       
-      {/* Row 1: Debts Breakdown */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard 
-          title="หนี้ค่าบ้านคงเหลือ" 
-          value={formatTHB(member.housingLoanBalance)} 
-          icon={<Home className="w-6 h-6 text-red-500" />}
-          colorClass="bg-white border-l-4 border-l-red-500"
-        />
-        <StatCard 
-          title="หนี้ที่ดินคงเหลือ" 
-          value={formatTHB(member.landLoanBalance)} 
-          icon={<MapPin className="w-6 h-6 text-orange-500" />}
-          colorClass="bg-white border-l-4 border-l-orange-500"
-        />
-        <StatCard 
-          title="สินเชื่อทั่วไปคงเหลือ" 
-          value={formatTHB(member.generalLoanBalance)} 
-          icon={<Coins className="w-6 h-6 text-amber-500" />}
-          colorClass="bg-white border-l-4 border-l-amber-500"
-        />
+        <StatCard title="หนี้ค่าบ้านคงเหลือ" value={formatTHB(member.housingLoanBalance)} icon={<Home className="w-6 h-6 text-red-500" />} colorClass="bg-white border-l-4 border-l-red-500" valueColorClass="text-red-600" />
+        <StatCard title="หนี้ที่ดินคงเหลือ" value={formatTHB(member.landLoanBalance)} icon={<MapPin className="w-6 h-6 text-orange-500" />} colorClass="bg-white border-l-4 border-l-orange-500" valueColorClass="text-red-600" />
+        <StatCard title="สินเชื่อทั่วไปคงเหลือ" value={formatTHB(member.generalLoanBalance)} icon={<Coins className="w-6 h-6 text-amber-500" />} colorClass="bg-white border-l-4 border-l-amber-500" valueColorClass="text-red-600" />
       </div>
 
       <div className="flex items-center gap-2 mb-2 mt-6">
@@ -90,47 +95,21 @@ export const MemberDashboard: React.FC = () => {
          <div className="h-px bg-slate-200 flex-1"></div>
       </div>
 
-      {/* Row 2: Assets */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <StatCard 
-          title="เงินฝากคงเหลือ" 
-          value={formatTHB(member.savingsBalance)} 
-          icon={<Wallet className="w-6 h-6 text-emerald-600" />}
-          colorClass="bg-emerald-50 border border-emerald-100"
-        />
-        <StatCard 
-          title="ทุนเรือนหุ้นสะสม" 
-          value={formatTHB(member.accumulatedShares)} 
-          icon={<PiggyBank className="w-6 h-6 text-teal-600" />}
-          colorClass="bg-teal-50 border border-teal-100"
-        />
+        <StatCard title="เงินฝากคงเหลือ" value={formatTHB(member.savingsBalance)} icon={<Wallet className="w-6 h-6 text-emerald-600" />} colorClass="bg-emerald-50 border border-emerald-100" valueColorClass="text-emerald-700" />
+        <StatCard title="ทุนเรือนหุ้นสะสม" value={formatTHB(member.accumulatedShares)} icon={<PiggyBank className="w-6 h-6 text-teal-600" />} colorClass="bg-teal-50 border border-teal-100" valueColorClass="text-teal-700" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-        {/* Loan Details & Chart */}
         <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 p-6">
-          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-teal-600" />
-            สัดส่วนภาระหนี้สิน
-          </h3>
-          
+          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><FileText className="w-5 h-5 text-teal-600" /> สัดส่วนภาระหนี้สิน</h3>
           <div className="flex flex-col md:flex-row items-center">
             {debtData.length > 0 ? (
               <div className="w-full md:w-1/2 h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie
-                      data={debtData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {debtData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
+                    <Pie data={debtData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                      {debtData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                     </Pie>
                     <RechartsTooltip formatter={(value: number) => formatTHB(value)} />
                     <Legend verticalAlign="bottom" height={36}/>
@@ -143,13 +122,11 @@ export const MemberDashboard: React.FC = () => {
                     <span>ไม่มีหนี้สินคงค้าง</span>
                 </div>
             )}
-            
             <div className="w-full md:w-1/2 space-y-4 mt-6 md:mt-0 md:pl-8">
                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-center">
                   <p className="text-slate-500 text-sm mb-1">หนี้สินรวมทั้งหมด</p>
-                  <p className="text-2xl font-bold text-slate-800">{formatTHB(totalDebt)}</p>
+                  <p className="text-2xl font-bold text-red-600">{formatTHB(totalDebt)}</p>
                </div>
-               
                <div className="space-y-2">
                    {debtData.map((d, i) => (
                        <div key={i} className="flex justify-between items-center text-sm">
@@ -157,7 +134,7 @@ export const MemberDashboard: React.FC = () => {
                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }}></div>
                                <span className="text-slate-600">{d.name}</span>
                            </div>
-                           <span className="font-semibold text-slate-800">{formatTHB(d.value)}</span>
+                           <span className="font-semibold text-red-600">{formatTHB(d.value)}</span>
                        </div>
                    ))}
                </div>
@@ -165,12 +142,8 @@ export const MemberDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Recent Transactions List */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col h-full">
-           <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-            <History className="w-5 h-5 text-teal-600" />
-            รายการเคลื่อนไหวล่าสุด
-          </h3>
+           <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><History className="w-5 h-5 text-teal-600" /> รายการเคลื่อนไหวล่าสุด</h3>
           <div className="flex-1 overflow-y-auto pr-2 space-y-3 max-h-[400px] scrollbar-thin scrollbar-thumb-slate-200">
             {member.transactions.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full text-slate-400 text-sm">
@@ -200,7 +173,6 @@ export const MemberDashboard: React.FC = () => {
   );
 };
 
-// Simple Icon component for empty state
 const CheckCircleIcon = ({ className }: { className?: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />

@@ -1,3 +1,4 @@
+
 import { Member } from './types';
 
 export const MOCK_MEMBERS: Member[] = [
@@ -16,6 +17,9 @@ export const MOCK_MEMBERS: Member[] = [
     housingLoanBalance: 450000,
     landLoanBalance: 120000,
     generalLoanBalance: 0,
+    // Fix: Added missing properties to satisfy Member interface
+    monthlyInstallment: 2500,
+    missedInstallments: 0,
     transactions: []
   },
   {
@@ -33,6 +37,9 @@ export const MOCK_MEMBERS: Member[] = [
     housingLoanBalance: 380000,
     landLoanBalance: 0,
     generalLoanBalance: 20000,
+    // Fix: Added missing properties to satisfy Member interface
+    monthlyInstallment: 1800,
+    missedInstallments: 3,
     transactions: []
   },
   {
@@ -50,6 +57,9 @@ export const MOCK_MEMBERS: Member[] = [
     housingLoanBalance: 0,
     landLoanBalance: 50000,
     generalLoanBalance: 0,
+    // Fix: Added missing properties to satisfy Member interface
+    monthlyInstallment: 1000,
+    missedInstallments: 0,
     transactions: []
   }
 ];

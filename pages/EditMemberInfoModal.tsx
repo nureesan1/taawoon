@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
-import { X, Save, User, Phone, MapPin, CreditCard, Calendar } from 'lucide-react';
+import { X, Save, User, Phone, MapPin, CreditCard, Calendar, CalendarDays, AlertTriangle } from 'lucide-react';
 
 interface EditMemberInfoModalProps {
   memberId: string;
@@ -18,7 +18,9 @@ export const EditMemberInfoModal: React.FC<EditMemberInfoModalProps> = ({ member
     phone: '',
     address: '',
     memberType: 'ordinary' as 'ordinary' | 'associate',
-    joinedDate: ''
+    joinedDate: '',
+    monthlyInstallment: 0,
+    missedInstallments: 0
   });
 
   useEffect(() => {
@@ -29,7 +31,9 @@ export const EditMemberInfoModal: React.FC<EditMemberInfoModalProps> = ({ member
         phone: member.personalInfo?.phone || '',
         address: member.personalInfo?.address || '',
         memberType: member.memberType || 'ordinary',
-        joinedDate: member.joinedDate || ''
+        joinedDate: member.joinedDate || '',
+        monthlyInstallment: member.monthlyInstallment || 0,
+        missedInstallments: member.missedInstallments || 0
       });
     }
   }, [member]);
@@ -48,6 +52,8 @@ export const EditMemberInfoModal: React.FC<EditMemberInfoModalProps> = ({ member
         name: formData.name,
         memberType: formData.memberType,
         joinedDate: formData.joinedDate,
+        monthlyInstallment: Number(formData.monthlyInstallment),
+        missedInstallments: Number(formData.missedInstallments),
         personalInfo: {
             ...member.personalInfo!,
             idCard: formData.idCard,
@@ -162,6 +168,36 @@ export const EditMemberInfoModal: React.FC<EditMemberInfoModalProps> = ({ member
                         />
                         <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-6" />
                     </div>
+                </div>
+
+                {/* New Fields Section */}
+                <div className="md:col-span-2 bg-slate-50 p-4 rounded-xl border border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                      <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                        <CalendarDays className="w-4 h-4 text-teal-600" />
+                        ยอดชำระต่องวด (บาท)
+                      </label>
+                      <input
+                          type="number"
+                          name="monthlyInstallment"
+                          value={formData.monthlyInstallment}
+                          onChange={handleChange}
+                          className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none font-bold text-teal-700"
+                      />
+                  </div>
+                  <div className="space-y-2">
+                      <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-red-500" />
+                        ผิดชำระหนี้สะสม (งวด)
+                      </label>
+                      <input
+                          type="number"
+                          name="missedInstallments"
+                          value={formData.missedInstallments}
+                          onChange={handleChange}
+                          className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-red-500 outline-none font-bold text-red-600"
+                      />
+                  </div>
                 </div>
             </div>
 

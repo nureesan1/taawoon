@@ -51,6 +51,10 @@ export interface Member {
   housingLoanBalance: number;
   landLoanBalance: number;
   generalLoanBalance: number;
+
+  // New Fields
+  monthlyInstallment: number;   // ยอดชำระต่องวด
+  missedInstallments: number;   // ผิดชำระหนี้ (งวด)
   
   // History
   transactions: Transaction[];

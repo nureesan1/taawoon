@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
 import { Member } from '../types';
@@ -136,7 +137,7 @@ export const StaffDashboard: React.FC = () => {
          <div className="bg-white p-5 rounded-xl border border-red-100 shadow-sm flex items-center justify-between transition-transform hover:-translate-y-1">
             <div>
                <p className="text-xs text-slate-500 font-bold uppercase mb-1">หนี้ค่าบ้านรวม</p>
-               <p className="text-lg font-bold text-slate-800">{formatTHB(totals.housing)}</p>
+               <p className="text-lg font-bold text-red-600">{formatTHB(totals.housing)}</p>
             </div>
             <div className="p-2 bg-red-50 rounded-lg">
                 <Building2 className="w-4 h-4 text-red-500" />
@@ -146,7 +147,7 @@ export const StaffDashboard: React.FC = () => {
          <div className="bg-white p-5 rounded-xl border border-orange-100 shadow-sm flex items-center justify-between transition-transform hover:-translate-y-1">
             <div>
                <p className="text-xs text-slate-500 font-bold uppercase mb-1">หนี้ที่ดินรวม</p>
-               <p className="text-lg font-bold text-slate-800">{formatTHB(totals.land)}</p>
+               <p className="text-lg font-bold text-red-600">{formatTHB(totals.land)}</p>
             </div>
             <div className="p-2 bg-orange-50 rounded-lg">
                 <MapPin className="w-4 h-4 text-orange-500" />
@@ -156,7 +157,7 @@ export const StaffDashboard: React.FC = () => {
          <div className="bg-white p-5 rounded-xl border border-amber-100 shadow-sm flex items-center justify-between transition-transform hover:-translate-y-1">
             <div>
                <p className="text-xs text-slate-500 font-bold uppercase mb-1">สินเชื่อทั่วไปรวม</p>
-               <p className="text-lg font-bold text-slate-800">{formatTHB(totals.general)}</p>
+               <p className="text-lg font-bold text-red-600">{formatTHB(totals.general)}</p>
             </div>
             <div className="p-2 bg-amber-50 rounded-lg">
                 <Coins className="w-4 h-4 text-amber-500" />
@@ -166,7 +167,7 @@ export const StaffDashboard: React.FC = () => {
          <div className="bg-white p-5 rounded-xl border border-teal-100 shadow-sm flex items-center justify-between transition-transform hover:-translate-y-1">
             <div>
                <p className="text-xs text-slate-500 font-bold uppercase mb-1">หุ้นสะสมรวม</p>
-               <p className="text-lg font-bold text-slate-800">{formatTHB(totals.shares)}</p>
+               <p className="text-lg font-bold text-teal-700">{formatTHB(totals.shares)}</p>
             </div>
             <div className="p-2 bg-teal-50 rounded-lg">
                 <PiggyBank className="w-4 h-4 text-teal-500" />
@@ -176,7 +177,7 @@ export const StaffDashboard: React.FC = () => {
          <div className="bg-white p-5 rounded-xl border border-emerald-100 shadow-sm flex items-center justify-between transition-transform hover:-translate-y-1">
             <div>
                <p className="text-xs text-slate-500 font-bold uppercase mb-1">เงินฝากรวม</p>
-               <p className="text-lg font-bold text-slate-800">{formatTHB(totals.savings)}</p>
+               <p className="text-lg font-bold text-emerald-700">{formatTHB(totals.savings)}</p>
             </div>
             <div className="p-2 bg-emerald-50 rounded-lg">
                 <Wallet className="w-4 h-4 text-emerald-500" />
@@ -226,9 +227,9 @@ export const StaffDashboard: React.FC = () => {
                 <tr key={member.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 font-mono text-slate-500">{member.memberCode}</td>
                   <td className="px-6 py-4 font-medium text-slate-800">{member.name}</td>
-                  <td className="px-6 py-4 text-right text-slate-600">{formatTHB(member.housingLoanBalance)}</td>
-                  <td className="px-6 py-4 text-right text-slate-600">{formatTHB(member.landLoanBalance)}</td>
-                  <td className="px-6 py-4 text-right text-slate-600">{formatTHB(member.generalLoanBalance)}</td>
+                  <td className="px-6 py-4 text-right text-red-600">{formatTHB(member.housingLoanBalance)}</td>
+                  <td className="px-6 py-4 text-right text-red-600">{formatTHB(member.landLoanBalance)}</td>
+                  <td className="px-6 py-4 text-right text-red-600">{formatTHB(member.generalLoanBalance)}</td>
                   <td className="px-6 py-4 text-right text-teal-600">{formatTHB(member.accumulatedShares)}</td>
                   <td className="px-6 py-4 text-right text-emerald-600 font-medium">{formatTHB(member.savingsBalance)}</td>
                   <td className="px-6 py-4 text-center">
