@@ -182,7 +182,7 @@ export const EditMemberInfoModal: React.FC<EditMemberInfoModalProps> = ({ member
                           name="monthlyInstallment"
                           value={formData.monthlyInstallment}
                           onChange={handleChange}
-                          className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none font-bold text-teal-700"
+                          className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-red-500 outline-none font-bold text-red-600"
                       />
                   </div>
                   <div className="space-y-2">

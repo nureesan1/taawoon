@@ -64,7 +64,6 @@ export const RecordPayment: React.FC = () => {
     }
     
     // Validate number format (allow digits and one decimal point)
-    // This allows typing "100." or large numbers without browser constraints
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
         setFormData(prev => ({ ...prev, [field]: value }));
     }
@@ -167,7 +166,7 @@ export const RecordPayment: React.FC = () => {
                 <CheckCircle2 className="w-16 h-16 text-green-600" />
             </div>
             <h2 className="text-3xl font-bold text-slate-800 mb-2">บันทึกเรียบร้อย</h2>
-            <p className="text-slate-500 text-lg">ยอดเงิน {formatTHB(totalAmount)}</p>
+            <p className="text-red-600 text-lg font-bold">ยอดเงิน {formatTHB(totalAmount)}</p>
         </div>
     );
   }
@@ -183,7 +182,6 @@ export const RecordPayment: React.FC = () => {
         
         {/* Card 1: Member & Date Selection */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 grid grid-cols-1 md:grid-cols-2 gap-6 relative z-20">
-            {/* Member Search Dropdown */}
             <div className="space-y-2 relative" ref={dropdownRef}>
                 <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
                     <User className="w-4 h-4 text-teal-600" />
@@ -198,7 +196,7 @@ export const RecordPayment: React.FC = () => {
                         onChange={(e) => {
                             setSearchQuery(e.target.value);
                             setIsDropdownOpen(true);
-                            if (selectedMember) setSelectedMember(null); // Clear selection if typing
+                            if (selectedMember) setSelectedMember(null);
                         }}
                         onClick={() => setIsDropdownOpen(true)}
                     />
@@ -206,7 +204,6 @@ export const RecordPayment: React.FC = () => {
                     <ChevronDown className={`w-5 h-5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                 </div>
 
-                {/* Dropdown List */}
                 {isDropdownOpen && (
                     <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-100 max-h-60 overflow-y-auto z-50">
                         {filteredMembers.length > 0 ? (
@@ -231,7 +228,6 @@ export const RecordPayment: React.FC = () => {
                 )}
             </div>
 
-            {/* Date Picker */}
             <div className="space-y-2">
                 <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-teal-600" />
@@ -259,44 +255,24 @@ export const RecordPayment: React.FC = () => {
             </div>
 
             <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                
-                {/* 1. ที่ดิน */}
                 <InputField label="1. ค่าที่ดิน (Land)" field="land" color="red" />
-                
-                {/* 2. บ้าน */}
                 <InputField label="2. ค่าบ้าน (Housing)" field="housing" color="red" />
-
-                {/* 3. หุ้น */}
                 <InputField label="3. ค่าหุ้น (Shares)" field="shares" color="emerald" />
-
-                {/* 4. เงินฝาก */}
                 <InputField label="4. เงินฝาก (Savings)" field="savings" color="emerald" />
-
-                {/* 5. สวัสดิการ */}
                 <InputField label="5. ค่าสวัสดิการ (Welfare)" field="welfare" color="blue" />
-
-                {/* 6. ประกันดินบ้าน */}
                 <InputField label="6. ค่าประกันดินบ้าน (Insurance)" field="insurance" color="blue" />
-
-                {/* 7. บริจาคบริหาร */}
                 <InputField label="7. ค่าบริจาคบริหาร (Donation)" field="donation" color="blue" />
-
-                {/* 8. สินเชื่อทั่วไป */}
                 <InputField label="8. สินเชื่อทั่วไป (General Loan)" field="generalLoan" color="amber" />
-
-                {/* 9. อื่นๆ */}
                 <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 mt-2">
                     <InputField label="9. อื่นๆ (ระบุยอดเงิน)" field="others" color="slate" />
                     <InputField label="รายละเอียด (ระบุค่าใช้จ่าย)" field="othersNote" placeholder="เช่น ค่าธรรมเนียมแรกเข้า" />
                 </div>
-
             </div>
             
-            {/* Footer Summary */}
             <div className="bg-slate-800 text-white p-6 flex flex-col md:flex-row items-center justify-between gap-4">
                 <div>
                     <p className="text-slate-400 text-xs uppercase font-bold tracking-wider">ยอดรวมสุทธิ</p>
-                    <p className="text-4xl font-bold">{formatTHB(totalAmount)}</p>
+                    <p className="text-4xl font-bold text-red-500">{formatTHB(totalAmount)}</p>
                 </div>
                 <button 
                     type="submit"
@@ -308,7 +284,6 @@ export const RecordPayment: React.FC = () => {
                 </button>
             </div>
         </div>
-
       </form>
     </div>
   );

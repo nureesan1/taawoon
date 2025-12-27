@@ -27,8 +27,8 @@ interface StoreContextType {
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 const DEFAULT_CONFIG: AppConfig = {
-  useGoogleSheets: false,
-  scriptUrl: ''
+  useGoogleSheets: true,
+  scriptUrl: 'https://script.google.com/macros/s/AKfycbzMokV0Pc8OpMXGFuK1ClXKMBsF-rEX3HJ4ycqjLwhZSj1zGW8lunhChvKIuDm2bC-oqA/exec'
 };
 
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -56,7 +56,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const refreshData = useCallback(async () => {
-    // FIX: Do not reset to MOCK_MEMBERS if just offline. Only fetch if configured.
     if (!config.useGoogleSheets || !config.scriptUrl) {
         return;
     }
@@ -69,7 +68,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
     } catch (error) {
       console.error("Failed to fetch data:", error);
-      // alert("ไม่สามารถดึงข้อมูลจาก Google Sheets ได้: " + (error as Error).message);
     } finally {
       setIsLoading(false);
     }
@@ -102,7 +100,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return members.find(m => m.id === id);
   }, [members]);
 
-  // Robust ID generation for bulk operations
   const generateId = () => {
     return Date.now().toString() + Math.random().toString(36).substr(2, 6);
   };
@@ -114,7 +111,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       timestamp: Date.now(),
     };
 
-    // Optimistic Update
     const prevMembers = [...members];
     const updateLocal = () => {
         setMembers(currentMembers => currentMembers.map(member => {
@@ -145,12 +141,12 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setIsLoading(true);
         try {
             await callApi('addTransaction', { transaction: newTx });
-            await refreshData(); // Re-sync to be sure
+            await refreshData();
             return true;
         } catch (error) {
             console.error(error);
             alert("เกิดข้อผิดพลาดในการบันทึกลง Google Sheets");
-            setMembers(prevMembers); // Rollback
+            setMembers(prevMembers);
             setIsLoading(false);
             return false;
         }
@@ -174,7 +170,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             return false;
         }
     } else {
-        setMembers(prev => [newMember, ...prev]); // Add to top
+        setMembers(prev => [newMember, ...prev]);
         return true;
     }
   };
@@ -182,7 +178,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const updateMember = async (id: string, data: Partial<Member>) => {
     const prevMembers = [...members];
     
-    // Optimistic Update
     setMembers(prev => prev.map(m => {
       if (m.id !== id) return m;
       
@@ -204,7 +199,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         } catch (error) {
             console.error(error);
             alert("อัปเดตข้อมูลล้มเหลว");
-            setMembers(prevMembers); // Rollback
+            setMembers(prevMembers);
             return false;
         }
     }
@@ -214,7 +209,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const deleteMember = async (id: string) => {
     const prevMembers = [...members];
     
-    // Optimistic Update
     setMembers(prev => prev.filter(m => m.id !== id));
 
     if (config.useGoogleSheets) {
@@ -225,7 +219,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       } catch (error) {
         console.error(error);
         alert("ลบข้อมูลล้มเหลว");
-        setMembers(prevMembers); // Rollback
+        setMembers(prevMembers);
         return false;
       } finally {
         setIsLoading(false);

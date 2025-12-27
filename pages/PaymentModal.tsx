@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { X, Save, Calculator } from 'lucide-react';
@@ -60,7 +61,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ memberId, onClose })
           type="number"
           min="0"
           className={`w-full p-2.5 pl-3 pr-10 border rounded-lg focus:ring-2 focus:outline-none transition-all
-            ${formData[field] > 0 ? `border-${color}-500 bg-${color}-50 ring-${color}-200` : 'border-slate-200 focus:border-teal-500 focus:ring-teal-200'}`}
+            ${formData[field] > 0 ? `border-${color}-500 bg-${color}-50 ring-${color}-200 text-${color}-700` : 'border-slate-200 focus:border-teal-500 focus:ring-teal-200 text-slate-700'}`}
           value={formData[field] === 0 ? '' : formData[field]}
           onChange={(e) => handleChange(field, e.target.value)}
           placeholder="0.00"
@@ -129,7 +130,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ memberId, onClose })
         <div className="p-6 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
             <div className="flex flex-col">
                 <span className="text-xs text-slate-500 font-semibold uppercase">ยอดรวมทั้งหมด</span>
-                <span className="text-2xl font-bold text-teal-700">
+                <span className="text-2xl font-bold text-red-600">
                     {new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(totalAmount)}
                 </span>
             </div>

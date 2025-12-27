@@ -80,7 +80,7 @@ export const MemberDashboard: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-2 mb-2 mt-2">
-         <h2 className="text-lg font-bold text-slate-700">ภาระหนี้สิน (Liabilities)</h2>
+         <h2 className="text-lg font-bold text-red-600">ภาระหนี้สิน (Liabilities)</h2>
          <div className="h-px bg-slate-200 flex-1"></div>
       </div>
       
@@ -91,7 +91,7 @@ export const MemberDashboard: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-2 mb-2 mt-6">
-         <h2 className="text-lg font-bold text-slate-700">ทรัพย์สิน (Assets)</h2>
+         <h2 className="text-lg font-bold text-emerald-700">ทรัพย์สิน (Assets)</h2>
          <div className="h-px bg-slate-200 flex-1"></div>
       </div>
 
