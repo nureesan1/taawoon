@@ -26,6 +26,7 @@ function doPost(e) {
   var requestData;
   try {
     requestData = JSON.parse(e.postData.contents);
+    Logger.log("Action: " + requestData.action);
   } catch (err) {
     return createResponse('error', 'Invalid JSON input');
   }
@@ -39,7 +40,6 @@ function doPost(e) {
 
       case 'addTransaction':
         var tx = requestData.transaction;
-        // Append to Transactions sheet (16 columns)
         transSheet.appendRow([
           tx.id, 
           tx.memberId, 
@@ -58,7 +58,6 @@ function doPost(e) {
           tx.totalAmount || 0, 
           tx.recordedBy || 'System'
         ]);
-        // Update the member's running balances
         updateMemberBalancesFromTx(memberSheet, tx);
         return createResponse('success', 'บันทึกรายการรับชำระเงินสำเร็จ');
 
@@ -113,17 +112,11 @@ function createResponse(status, data) {
   return ContentService.createTextOutput(JSON.stringify(output)).setMimeType(ContentService.MimeType.JSON);
 }
 
-/**
- * Optimised data retrieval: Groups transactions by MemberID first
- * to avoid O(N*M) nested loop performance issues.
- */
 function getMembersData(memberSheet, transSheet) {
   var mRows = memberSheet.getDataRange().getValues();
   var tRows = transSheet.getDataRange().getValues();
   
-  // 1. Group transactions by Member ID
   var transactionsByMember = {};
-  // Skip header row for transactions
   for (var j = 1; j < tRows.length; j++) {
     var mid = tRows[j][1];
     if (!transactionsByMember[mid]) transactionsByMember[mid] = [];
@@ -148,9 +141,7 @@ function getMembersData(memberSheet, transSheet) {
     });
   }
 
-  // 2. Map members and attach their transactions
   var members = [];
-  // Skip header row for members
   for (var i = 1; i < mRows.length; i++) {
     var m = mRows[i];
     var memberId = m[0];
@@ -180,32 +171,21 @@ function getMembersData(memberSheet, transSheet) {
   return members;
 }
 
-/**
- * Updates the running balances in the Members sheet based on a transaction.
- */
 function updateMemberBalancesFromTx(sheet, tx) {
   var data = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
     if (data[i][0] === tx.memberId) {
       var row = i + 1;
-      // Col 9: Shares (Index 8)
       sheet.getRange(row, 9).setValue((Number(data[i][8]) || 0) + (Number(tx.shares) || 0));
-      // Col 10: Savings (Index 9)
       sheet.getRange(row, 10).setValue((Number(data[i][9]) || 0) + (Number(tx.savings) || 0));
-      // Col 11: Housing Debt (Index 10)
       sheet.getRange(row, 11).setValue(Math.max(0, (Number(data[i][10]) || 0) - (Number(tx.housing) || 0)));
-      // Col 12: Land Debt (Index 11)
       sheet.getRange(row, 12).setValue(Math.max(0, (Number(data[i][11]) || 0) - (Number(tx.land) || 0)));
-      // Col 13: General Debt (Index 12)
       sheet.getRange(row, 13).setValue(Math.max(0, (Number(data[i][12]) || 0) - (Number(tx.generalLoan) || 0)));
       break;
     }
   }
 }
 
-/**
- * Updates specific member fields.
- */
 function updateMemberData(sheet, id, updateData) {
   var data = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {

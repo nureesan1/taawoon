@@ -10,6 +10,7 @@ import { MemberProfile } from './pages/MemberProfile';
 import { RecordPayment } from './pages/RecordPayment';
 import { Settings } from './pages/Settings';
 import { MemberManagement } from './pages/MemberManagement';
+import { DailySummary } from './pages/DailySummary';
 import { UserRole } from './types';
 
 const AppContent: React.FC = () => {
@@ -31,6 +32,7 @@ const AppContent: React.FC = () => {
       {currentUser.role === UserRole.STAFF && currentView === 'record_payment' && <RecordPayment />}
       {currentUser.role === UserRole.STAFF && currentView === 'settings' && <Settings />}
       {currentUser.role === UserRole.STAFF && currentView === 'member_management' && <MemberManagement />}
+      {currentUser.role === UserRole.STAFF && currentView === 'daily_summary' && <DailySummary />}
     </Layout>
   );
 };

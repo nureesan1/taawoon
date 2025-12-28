@@ -4,7 +4,7 @@ import { Member, Transaction, UserRole, AppConfig } from '../types';
 import { MOCK_MEMBERS } from '../constants';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 
-type AppView = 'dashboard' | 'register_member' | 'member_management' | 'member_profile' | 'settings' | 'record_payment';
+type AppView = 'dashboard' | 'register_member' | 'member_management' | 'member_profile' | 'settings' | 'record_payment' | 'daily_summary';
 
 interface StoreContextType {
   members: Member[];
@@ -26,7 +26,6 @@ interface StoreContextType {
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-// ดึงค่าจาก Environment Variable ของ Vercel (ถ้ามี) หรือใช้ค่า Default เดิม
 const DEFAULT_SCRIPT_URL = (import.meta as any).env?.VITE_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbzMokV0Pc8OpMXGFuK1ClXKMBsF-rEX3HJ4ycqjLwhZSj1zGW8lunhChvKIuDm2bC-oqA/exec';
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -40,8 +39,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
   const [config, setConfig] = useState<AppConfig>(() => {
     const saved = localStorage.getItem('app_config');
-    // หากมีการตั้งค่าใน Browser แล้วให้ใช้ค่าจาก Browser (Settings UI)
-    // หากยังไม่มี ให้ใช้ค่าจาก Environment Variable (Vercel)
     return saved ? JSON.parse(saved) : DEFAULT_CONFIG;
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -112,7 +109,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     const prevMembers = [...members];
     
-    // Optimistic UI Update
     setMembers(currentMembers => currentMembers.map(member => {
         if (member.id !== txData.memberId) return member;
         return {
@@ -134,7 +130,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             return true;
         } catch (error) {
             console.error(error);
-            alert("เกิดข้อผิดพลาดในการบันทึกลง Google Sheets");
             setMembers(prevMembers);
             setIsLoading(false);
             return false;
@@ -158,7 +153,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             return true;
         } catch (error) {
             console.error(error);
-            alert("บันทึกข้อมูลสมาชิกล้มเหลว");
             return false;
         } finally {
             setIsLoading(false);
@@ -179,7 +173,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             return true;
         } catch (error) {
             console.error(error);
-            alert("อัปเดตข้อมูลล้มเหลว");
             return false;
         } finally {
             setIsLoading(false);
@@ -199,7 +192,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         return true;
       } catch (error) {
         console.error(error);
-        alert("ลบข้อมูลล้มเหลว");
         return false;
       } finally {
         setIsLoading(false);
