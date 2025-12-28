@@ -26,9 +26,12 @@ interface StoreContextType {
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
+// ดึงค่าจาก Environment Variable ของ Vercel (ถ้ามี) หรือใช้ค่า Default เดิม
+const DEFAULT_SCRIPT_URL = (import.meta as any).env?.VITE_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbzMokV0Pc8OpMXGFuK1ClXKMBsF-rEX3HJ4ycqjLwhZSj1zGW8lunhChvKIuDm2bC-oqA/exec';
+
 const DEFAULT_CONFIG: AppConfig = {
   useGoogleSheets: true,
-  scriptUrl: 'https://script.google.com/macros/s/AKfycbzMokV0Pc8OpMXGFuK1ClXKMBsF-rEX3HJ4ycqjLwhZSj1zGW8lunhChvKIuDm2bC-oqA/exec'
+  scriptUrl: DEFAULT_SCRIPT_URL
 };
 
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -37,6 +40,8 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
   const [config, setConfig] = useState<AppConfig>(() => {
     const saved = localStorage.getItem('app_config');
+    // หากมีการตั้งค่าใน Browser แล้วให้ใช้ค่าจาก Browser (Settings UI)
+    // หากยังไม่มี ให้ใช้ค่าจาก Environment Variable (Vercel)
     return saved ? JSON.parse(saved) : DEFAULT_CONFIG;
   });
   const [isLoading, setIsLoading] = useState(false);
