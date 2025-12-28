@@ -32,13 +32,14 @@ export const RecordPayment: React.FC = () => {
   });
 
   // Filter Members for Dropdown
-  const filteredMembers = searchQuery.trim() === '' 
-    ? members.slice(0, 10) 
+  const cleanSearch = searchQuery.trim().toLowerCase();
+  const filteredMembers = cleanSearch === '' 
+    ? members.slice(0, 15) // Show top 15 when empty
     : members.filter(m => 
-        m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        m.memberCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        m.personalInfo?.idCard?.includes(searchQuery)
-      );
+        m.name.toLowerCase().includes(cleanSearch) || 
+        m.memberCode.toLowerCase().includes(cleanSearch) ||
+        (m.personalInfo?.idCard && String(m.personalInfo.idCard).includes(cleanSearch))
+      ).slice(0, 30); // Limit dropdown to 30 results for performance
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -185,14 +186,14 @@ export const RecordPayment: React.FC = () => {
                     <input
                         type="text"
                         className="w-full p-3 pl-10 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition-all cursor-pointer"
-                        placeholder="ค้นหาชื่อ หรือ รหัสสมาชิก..."
+                        placeholder="ค้นหาชื่อ, รหัส หรือ เลขบัตรประชาชน..."
                         value={searchQuery}
                         onChange={(e) => {
                             setSearchQuery(e.target.value);
                             setIsDropdownOpen(true);
                             if (selectedMember) setSelectedMember(null);
                         }}
-                        onClick={() => setIsDropdownOpen(true)}
+                        onFocus={() => setIsDropdownOpen(true)}
                     />
                     <Search className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <ChevronDown className={`w-5 h-5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />

@@ -13,7 +13,7 @@ export const MemberManagement: React.FC = () => {
   const filteredMembers = members.filter(m => 
     m.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     m.memberCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    m.personalInfo?.idCard?.includes(searchTerm)
+    (m.personalInfo?.idCard && String(m.personalInfo.idCard).includes(searchTerm))
   );
 
   const handleDelete = async (member: Member) => {

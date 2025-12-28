@@ -14,10 +14,16 @@ export const StaffDashboard: React.FC = () => {
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [modalType, setModalType] = useState<'payment' | 'edit' | null>(null);
 
-  const filteredMembers = members.filter(m => 
-    m.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    m.memberCode.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredMembers = members.filter(m => {
+    const cleanSearch = searchTerm.trim().toLowerCase();
+    if (!cleanSearch) return true;
+    
+    return (
+      m.name.toLowerCase().includes(cleanSearch) || 
+      m.memberCode.toLowerCase().includes(cleanSearch) ||
+      (m.personalInfo?.idCard && String(m.personalInfo.idCard).includes(cleanSearch))
+    );
+  });
 
   const handleOpenPayment = (memberId: string) => {
     setSelectedMemberId(memberId);
@@ -191,7 +197,7 @@ export const StaffDashboard: React.FC = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
           <input
             type="text"
-            placeholder="ค้นหาสมาชิก (ชื่อ หรือ รหัส)"
+            placeholder="ค้นหาสมาชิก (ชื่อ, รหัส หรือ เลขบัตร)"
             className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
