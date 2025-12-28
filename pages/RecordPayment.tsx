@@ -5,7 +5,7 @@ import { Save, CheckCircle2, User, Search, Calendar, ChevronDown, Zap, Info, Era
 import { Member } from '../types';
 
 export const RecordPayment: React.FC = () => {
-  const { members, addTransaction, currentUser } = useStore();
+  const { members, addTransaction, currentUser, setView } = useStore();
   
   // State
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
@@ -147,15 +147,9 @@ export const RecordPayment: React.FC = () => {
         setIsSuccess(true);
         setTimeout(() => {
             setIsSuccess(false);
-            setSelectedMember(null);
-            setSearchQuery('');
-            setQuickInput('');
-            setFormData({
-                land: '', housing: '', shares: '', savings: '', 
-                welfare: '', insurance: '', donation: '', generalLoan: '',
-                others: '', othersNote: ''
-            });
-        }, 2000);
+            // Redirect to summary page so user can see the new item
+            setView('daily_summary');
+        }, 1500);
     }
   };
 
@@ -202,6 +196,7 @@ export const RecordPayment: React.FC = () => {
             </div>
             <h2 className="text-3xl font-bold text-slate-800 mb-2">บันทึกเรียบร้อย</h2>
             <p className="text-red-600 text-3xl font-bold">ยอดเงิน {formatTHB(totalAmount)}</p>
+            <p className="text-slate-400 mt-4 animate-pulse">กำลังไปยังหน้าสรุปรายงาน...</p>
         </div>
     );
   }

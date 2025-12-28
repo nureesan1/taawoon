@@ -1,71 +1,76 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useStore } from '../context/StoreContext';
-import { Calendar, Search, FileText, TrendingUp, Filter, Clock, Download, PieChart, Landmark, Building, MapPin, Coins, PiggyBank, Wallet } from 'lucide-react';
-import { Transaction } from '../types';
+import { Search, FileText, TrendingUp, Filter, Clock, Download, Building, MapPin, Coins, PiggyBank, Wallet } from 'lucide-react';
 
 type SummaryPeriod = 'daily' | 'monthly' | 'yearly';
+
+// Helper to get consistent local date string YYYY-MM-DD
+const getLocalDateString = (dateInput?: any) => {
+  const date = dateInput ? new Date(dateInput) : new Date();
+  if (isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export const DailySummary: React.FC = () => {
   const { members } = useStore();
   const [period, setPeriod] = useState<SummaryPeriod>('daily');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getLocalDateString());
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Extract all transactions and attach member name
-  const allTransactions = members.flatMap(member => 
-    (member.transactions || []).map(tx => ({
-      ...tx,
-      memberName: member.name,
-      memberCode: member.memberCode
-    }))
-  ).sort((a, b) => b.timestamp - a.timestamp);
+  // Extract and flatten all transactions
+  const allTransactions = useMemo(() => {
+    return members.flatMap(member => 
+      (member.transactions || []).map(tx => ({
+        ...tx,
+        memberName: member.name,
+        memberCode: member.memberCode
+      }))
+    ).sort((a, b) => b.timestamp - a.timestamp);
+  }, [members]);
 
-  // Helper to get consistent date string YYYY-MM-DD
-  const formatDateForCompare = (dateInput: any) => {
-    if (!dateInput) return '';
-    try {
-      const d = new Date(dateInput);
-      if (isNaN(d.getTime())) return '';
-      return d.toISOString().split('T')[0];
-    } catch (e) {
-      return '';
-    }
-  };
+  // Filter based on period and search term
+  const filteredTransactions = useMemo(() => {
+    return allTransactions.filter(tx => {
+      const txDate = new Date(tx.date);
+      const selDate = new Date(selectedDate);
+      
+      const matchesSearch = tx.memberName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            tx.memberCode.toLowerCase().includes(searchTerm.toLowerCase());
 
-  // Filter based on period
-  const filteredTransactions = allTransactions.filter(tx => {
-    const txDate = new Date(tx.date);
-    const selDate = new Date(selectedDate);
-    
-    const matchesSearch = tx.memberName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          tx.memberCode.toLowerCase().includes(searchTerm.toLowerCase());
+      if (!matchesSearch) return false;
 
-    if (!matchesSearch) return false;
+      // Use local date strings for robust comparison
+      const txDateStr = getLocalDateString(tx.date);
+      const selDateStr = getLocalDateString(selectedDate);
 
-    // Compare date components to avoid timezone issues
-    const txDateStr = formatDateForCompare(tx.date);
-    const selDateStr = formatDateForCompare(selectedDate);
+      if (period === 'daily') {
+        return txDateStr === selDateStr;
+      } else if (period === 'monthly') {
+        // Compare Year and Month using local time
+        return txDate.getMonth() === selDate.getMonth() && 
+               txDate.getFullYear() === selDate.getFullYear();
+      } else {
+        // Compare Year using local time
+        return txDate.getFullYear() === selDate.getFullYear();
+      }
+    });
+  }, [allTransactions, period, selectedDate, searchTerm]);
 
-    if (period === 'daily') {
-      return txDateStr === selDateStr;
-    } else if (period === 'monthly') {
-      return txDate.getUTCMonth() === selDate.getUTCMonth() && 
-             txDate.getUTCFullYear() === selDate.getUTCFullYear();
-    } else {
-      return txDate.getUTCFullYear() === selDate.getUTCFullYear();
-    }
-  });
-
-  const totals = filteredTransactions.reduce((acc, tx) => ({
-    housing: acc.housing + (Number(tx.housing) || 0),
-    land: acc.land + (Number(tx.land) || 0),
-    shares: acc.shares + (Number(tx.shares) || 0),
-    savings: acc.savings + (Number(tx.savings) || 0),
-    general: acc.general + (Number(tx.generalLoan) || 0),
-    others: acc.others + (Number(tx.welfare) || 0) + (Number(tx.insurance) || 0) + (Number(tx.donation) || 0) + (Number(tx.others) || 0),
-    grandTotal: acc.grandTotal + (Number(tx.totalAmount) || 0)
-  }), { housing: 0, land: 0, shares: 0, savings: 0, general: 0, others: 0, grandTotal: 0 });
+  const totals = useMemo(() => {
+    return filteredTransactions.reduce((acc, tx) => ({
+      housing: acc.housing + (Number(tx.housing) || 0),
+      land: acc.land + (Number(tx.land) || 0),
+      shares: acc.shares + (Number(tx.shares) || 0),
+      savings: acc.savings + (Number(tx.savings) || 0),
+      general: acc.general + (Number(tx.generalLoan) || 0),
+      others: acc.others + (Number(tx.welfare) || 0) + (Number(tx.insurance) || 0) + (Number(tx.donation) || 0) + (Number(tx.others) || 0),
+      grandTotal: acc.grandTotal + (Number(tx.totalAmount) || 0)
+    }), { housing: 0, land: 0, shares: 0, savings: 0, general: 0, others: 0, grandTotal: 0 });
+  }, [filteredTransactions]);
 
   const formatTHB = (num: number) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(num);
 
@@ -187,7 +192,7 @@ export const DailySummary: React.FC = () => {
                {filteredTransactions.map(tx => (
                   <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
                      <td className="px-6 py-4">
-                        <div className="font-medium text-slate-700">{new Date(tx.date).toLocaleDateString('th-TH', { dateStyle: 'short' })}</div>
+                        <div className="font-medium text-slate-700">{getLocalDateString(tx.date)}</div>
                         <div className="text-[10px] text-slate-400">{new Date(tx.timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</div>
                      </td>
                      <td className="px-6 py-4">
