@@ -14,12 +14,24 @@ export const DailySummary: React.FC = () => {
 
   // Extract all transactions and attach member name
   const allTransactions = members.flatMap(member => 
-    member.transactions.map(tx => ({
+    (member.transactions || []).map(tx => ({
       ...tx,
       memberName: member.name,
       memberCode: member.memberCode
     }))
   ).sort((a, b) => b.timestamp - a.timestamp);
+
+  // Helper to get consistent date string YYYY-MM-DD
+  const formatDateForCompare = (dateInput: any) => {
+    if (!dateInput) return '';
+    try {
+      const d = new Date(dateInput);
+      if (isNaN(d.getTime())) return '';
+      return d.toISOString().split('T')[0];
+    } catch (e) {
+      return '';
+    }
+  };
 
   // Filter based on period
   const filteredTransactions = allTransactions.filter(tx => {
@@ -31,23 +43,28 @@ export const DailySummary: React.FC = () => {
 
     if (!matchesSearch) return false;
 
+    // Compare date components to avoid timezone issues
+    const txDateStr = formatDateForCompare(tx.date);
+    const selDateStr = formatDateForCompare(selectedDate);
+
     if (period === 'daily') {
-      return tx.date === selectedDate;
+      return txDateStr === selDateStr;
     } else if (period === 'monthly') {
-      return txDate.getMonth() === selDate.getMonth() && txDate.getFullYear() === selDate.getFullYear();
+      return txDate.getUTCMonth() === selDate.getUTCMonth() && 
+             txDate.getUTCFullYear() === selDate.getUTCFullYear();
     } else {
-      return txDate.getFullYear() === selDate.getFullYear();
+      return txDate.getUTCFullYear() === selDate.getUTCFullYear();
     }
   });
 
   const totals = filteredTransactions.reduce((acc, tx) => ({
-    housing: acc.housing + (tx.housing || 0),
-    land: acc.land + (tx.land || 0),
-    shares: acc.shares + (tx.shares || 0),
-    savings: acc.savings + (tx.savings || 0),
-    general: acc.general + (tx.generalLoan || 0),
-    others: acc.others + (tx.welfare || 0) + (tx.insurance || 0) + (tx.donation || 0) + (tx.others || 0),
-    grandTotal: acc.grandTotal + tx.totalAmount
+    housing: acc.housing + (Number(tx.housing) || 0),
+    land: acc.land + (Number(tx.land) || 0),
+    shares: acc.shares + (Number(tx.shares) || 0),
+    savings: acc.savings + (Number(tx.savings) || 0),
+    general: acc.general + (Number(tx.generalLoan) || 0),
+    others: acc.others + (Number(tx.welfare) || 0) + (Number(tx.insurance) || 0) + (Number(tx.donation) || 0) + (Number(tx.others) || 0),
+    grandTotal: acc.grandTotal + (Number(tx.totalAmount) || 0)
   }), { housing: 0, land: 0, shares: 0, savings: 0, general: 0, others: 0, grandTotal: 0 });
 
   const formatTHB = (num: number) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(num);
@@ -105,7 +122,7 @@ export const DailySummary: React.FC = () => {
         </div>
       </div>
 
-      {/* Summary Cards - Matching Screenshot Style */}
+      {/* Summary Cards */}
       <div className="flex items-center gap-2 mb-2">
          <h2 className="text-lg font-bold text-red-600">สรุปยอดรับเงินแยกประเภท</h2>
          <div className="h-px bg-slate-200 flex-1"></div>
@@ -178,15 +195,15 @@ export const DailySummary: React.FC = () => {
                         <div className="text-xs text-slate-500 font-mono">{tx.memberCode}</div>
                      </td>
                      <td className="px-6 py-4 text-right">
-                        <div className="text-red-600 font-medium">{formatTHB(tx.housing + tx.land)}</div>
-                        <div className="text-[10px] text-slate-400">บ้าน {formatTHB(tx.housing)} | ที่ดิน {formatTHB(tx.land)}</div>
+                        <div className="text-red-600 font-medium">{formatTHB((Number(tx.housing) || 0) + (Number(tx.land) || 0))}</div>
+                        <div className="text-[10px] text-slate-400">บ้าน {formatTHB(Number(tx.housing) || 0)} | ที่ดิน {formatTHB(Number(tx.land) || 0)}</div>
                      </td>
                      <td className="px-6 py-4 text-right">
-                        <div className="text-teal-600 font-medium">{formatTHB(tx.shares + tx.savings)}</div>
-                        <div className="text-[10px] text-slate-400">หุ้น {formatTHB(tx.shares)} | ฝาก {formatTHB(tx.savings)}</div>
+                        <div className="text-teal-600 font-medium">{formatTHB((Number(tx.shares) || 0) + (Number(tx.savings) || 0))}</div>
+                        <div className="text-[10px] text-slate-400">หุ้น {formatTHB(Number(tx.shares) || 0)} | ฝาก {formatTHB(Number(tx.savings) || 0)}</div>
                      </td>
                      <td className="px-6 py-4 text-right">
-                        <div className="text-base font-bold text-slate-900">{formatTHB(tx.totalAmount)}</div>
+                        <div className="text-base font-bold text-slate-900">{formatTHB(Number(tx.totalAmount) || 0)}</div>
                      </td>
                      <td className="px-6 py-4 text-center">
                         <span className="bg-slate-100 px-2 py-1 rounded text-[10px] font-bold text-slate-600 uppercase">

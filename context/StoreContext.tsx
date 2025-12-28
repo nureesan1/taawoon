@@ -63,7 +63,12 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     try {
       const data = await callApi('getData');
       if (data && data.members) {
-        setMembers(data.members);
+        // Ensure transactions are sorted by timestamp (newest first)
+        const sortedMembers = data.members.map((m: Member) => ({
+          ...m,
+          transactions: (m.transactions || []).sort((a, b) => b.timestamp - a.timestamp)
+        }));
+        setMembers(sortedMembers);
       }
     } catch (error) {
       console.error("Failed to fetch data:", error);
@@ -109,6 +114,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     const prevMembers = [...members];
     
+    // Optimistic local update
     setMembers(currentMembers => currentMembers.map(member => {
         if (member.id !== txData.memberId) return member;
         return {
@@ -118,7 +124,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             generalLoanBalance: Math.max(0, member.generalLoanBalance - txData.generalLoan),
             accumulatedShares: member.accumulatedShares + txData.shares,
             savingsBalance: member.savingsBalance + txData.savings,
-            transactions: [newTx, ...member.transactions]
+            transactions: [newTx, ...(member.transactions || [])]
         };
     }));
 
@@ -126,11 +132,12 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setIsLoading(true);
         try {
             await callApi('addTransaction', { transaction: newTx });
+            // Critical: wait for refresh to confirm server state
             await refreshData();
             return true;
         } catch (error) {
-            console.error(error);
-            setMembers(prevMembers);
+            console.error("API addTransaction error:", error);
+            setMembers(prevMembers); // Rollback on error
             setIsLoading(false);
             return false;
         }
