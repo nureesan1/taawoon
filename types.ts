@@ -11,7 +11,7 @@ export interface Transaction {
   date: string;
   timestamp: number;
   
-  // Payment Breakdown
+  // Payment Amounts
   housing: number;    // ค่าบ้าน
   land: number;       // ค่าที่ดิน
   shares: number;     // ค่าหุ้น
@@ -21,20 +21,29 @@ export interface Transaction {
   donation: number;   // บริจาค
   generalLoan: number;// สินเชื่อทั่วไป
   
+  // Quantities (จำนวนงวด/หน่วย)
+  qtyHousing?: number;
+  qtyLand?: number;
+  qtyShares?: number;
+  qtySavings?: number;
+  qtyWelfare?: number;
+  qtyInsurance?: number;
+  qtyDonation?: number;
+  qtyGeneralLoan?: number;
+
   others?: number;    // อื่นๆ
   othersNote?: string; // รายละเอียดอื่นๆ
 
   totalAmount: number;
   recordedBy: string;
-  paymentMethod: 'cash' | 'transfer'; // เพิ่มฟิลด์ประเภทการรับเงิน
+  paymentMethod: 'cash' | 'transfer';
 }
 
 export interface Member {
   id: string;
   name: string;
-  memberCode: string; // e.g., T-001
+  memberCode: string;
   
-  // Personal Info
   personalInfo?: {
     idCard: string;
     dateOfBirth?: string;
@@ -44,20 +53,16 @@ export interface Member {
   memberType?: 'ordinary' | 'associate';
   joinedDate?: string;
 
-  // Balances
   accumulatedShares: number;
   savingsBalance: number;
   
-  // Debts
   housingLoanBalance: number;
   landLoanBalance: number;
   generalLoanBalance: number;
 
-  // New Fields
-  monthlyInstallment: number;   // ยอดชำระต่องวด
-  missedInstallments: number;   // ผิดชำระหนี้ (งวด)
+  monthlyInstallment: number;
+  missedInstallments: number;
   
-  // History
   transactions: Transaction[];
 }
 
