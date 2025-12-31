@@ -155,6 +155,10 @@ export const RecordPayment: React.FC = () => {
     setIsDropdownOpen(false);
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMember) { alert("กรุณาเลือกสมาชิก"); return; }
@@ -202,8 +206,7 @@ export const RecordPayment: React.FC = () => {
 
     if (success) {
       setIsSuccess(true);
-      window.print(); // Trigger print for receipt
-      setTimeout(() => setView('daily_summary'), 1500);
+      // Removed automatic print here to allow manual choice with separated buttons
     }
   };
 
@@ -238,9 +241,6 @@ export const RecordPayment: React.FC = () => {
             <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.3em] mt-1">Receipt Generation System</p>
           </div>
         </div>
-        <button onClick={() => window.print()} className="bg-white border border-slate-200 text-slate-600 px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-slate-50 transition-all font-bold shadow-sm">
-          <Printer className="w-5 h-5" /> พิมพ์ใบเสร็จ
-        </button>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -474,18 +474,27 @@ export const RecordPayment: React.FC = () => {
           </div>
         </div>
 
-        {/* Action Button (Web Only) */}
-        <div className="print:hidden flex justify-end">
+        {/* Action Buttons (Web Only) - Separated Confirm and Print */}
+        <div className="print:hidden flex justify-end gap-6 pt-4">
+           <button 
+             type="button"
+             onClick={handlePrint}
+             className="px-10 py-5 rounded-[2.5rem] font-black text-xl shadow-xl flex items-center gap-3 bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200 transition-all active:scale-95 group"
+           >
+             <Printer className="w-6 h-6 group-hover:rotate-6 transition-transform" /> 
+             พิมพ์ใบเสร็จ
+           </button>
+           
            <button 
              type="submit" 
              disabled={isSuccess || !selectedMember || grandTotal <= 0}
-             className={`px-16 py-6 rounded-3xl font-black text-2xl shadow-2xl flex items-center gap-4 transition-all active:scale-95 disabled:grayscale disabled:opacity-50
+             className={`px-14 py-5 rounded-[2.5rem] font-black text-2xl shadow-2xl flex items-center gap-4 transition-all active:scale-95 disabled:grayscale disabled:opacity-50
                ${paymentMethod === 'transfer' ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/20' : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-900/20'}`}
            >
              {isSuccess ? (
                <><CheckCircle2 className="w-8 h-8 animate-bounce" /> บันทึกแล้ว</>
              ) : (
-               <><Save className="w-8 h-8" /> ยืนยันและพิมพ์ใบเสร็จ</>
+               <><Save className="w-8 h-8" /> ยืนยันการบันทึก</>
              )}
            </button>
         </div>
