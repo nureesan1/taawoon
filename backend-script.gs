@@ -57,7 +57,7 @@ function doPost(e) {
           tx.othersNote || '', 
           tx.totalAmount || 0, 
           tx.recordedBy || 'System',
-          tx.paymentMethod || 'cash' // เพิ่มคอลัมน์ที่ 17
+          tx.paymentMethod || 'cash' // Column 17
         ]);
         updateMemberBalancesFromTx(memberSheet, tx);
         return createResponse('success', 'บันทึกรายการรับชำระเงินสำเร็จ');
@@ -139,7 +139,7 @@ function getMembersData(memberSheet, transSheet) {
       othersNote: tRows[j][13],
       totalAmount: tRows[j][14],
       recordedBy: tRows[j][15],
-      paymentMethod: tRows[j][16] || 'cash' // ดึงข้อมูลคอลัมน์ที่ 17
+      paymentMethod: tRows[j][16] || 'cash'
     });
   }
 
@@ -178,6 +178,7 @@ function updateMemberBalancesFromTx(sheet, tx) {
   for (var i = 1; i < data.length; i++) {
     if (data[i][0] === tx.memberId) {
       var row = i + 1;
+      // Col 9: Shares, Col 10: Savings, Col 11: Housing, Col 12: Land, Col 13: General Loan
       sheet.getRange(row, 9).setValue((Number(data[i][8]) || 0) + (Number(tx.shares) || 0));
       sheet.getRange(row, 10).setValue((Number(data[i][9]) || 0) + (Number(tx.savings) || 0));
       sheet.getRange(row, 11).setValue(Math.max(0, (Number(data[i][10]) || 0) - (Number(tx.housing) || 0)));

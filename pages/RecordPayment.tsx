@@ -77,12 +77,20 @@ export const RecordPayment: React.FC = () => {
   // Smart Parser for Quick Entry
   const handleQuickInputChange = (value: string) => {
     setQuickInput(value);
+    // Split by spaces, tabs or commas
     const parts = value.trim().split(/[\s,]+/).filter(p => p !== '');
     
     if (parts.length > 0) {
+      // Define exact order mapping (Matches labels 1-8)
       const keys: (keyof typeof formData)[] = [
-        'land', 'housing', 'shares', 'savings', 
-        'welfare', 'insurance', 'donation', 'generalLoan'
+        'land',         // 1. ที่ดิน
+        'housing',      // 2. บ้าน
+        'shares',       // 3. หุ้น
+        'savings',      // 4. เงินฝาก
+        'welfare',      // 5. สวัสดิการ
+        'insurance',    // 6. ประกัน
+        'donation',     // 7. บริจาค
+        'generalLoan'   // 8. สินเชื่อทั่วไป
       ];
       
       const newFormData = { ...formData };
@@ -159,11 +167,18 @@ export const RecordPayment: React.FC = () => {
     }
   };
 
-  const formatTHB = (num: number) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(num);
-
   const InputField = ({ label, field, color = "slate", placeholder = "0.00" }: { label: string, field: keyof typeof formData, color?: string, placeholder?: string }) => {
     const value = formData[field];
     const isFilled = field !== 'othersNote' && getNumericValue(value as string) > 0;
+
+    // Mapping colors for borders as per standard
+    const borderColors: Record<string, string> = {
+      red: 'border-red-500 bg-red-50/30 text-red-700',
+      emerald: 'border-emerald-500 bg-emerald-50/30 text-emerald-700',
+      blue: 'border-blue-500 bg-blue-50/30 text-blue-700',
+      amber: 'border-amber-500 bg-amber-50/30 text-amber-700',
+      slate: 'border-slate-300 bg-slate-50 text-slate-700'
+    };
 
     return (
         <div className="space-y-1.5 group">
@@ -181,18 +196,18 @@ export const RecordPayment: React.FC = () => {
                 <input
                 type="text"
                 inputMode="decimal"
-                className={`w-full p-4 pl-4 pr-10 border rounded-2xl focus:ring-4 focus:outline-none transition-all font-black text-xl
-                    ${isFilled ? `border-${color}-500 bg-${color}-50/50 ring-${color}-100 text-${color}-700` : 'border-slate-200 focus:border-teal-500 focus:ring-teal-50 text-slate-700'}`}
+                className={`w-full p-4 pl-4 pr-10 border-2 rounded-2xl focus:ring-4 focus:outline-none transition-all font-black text-xl
+                    ${isFilled ? borderColors[color] : 'border-slate-100 focus:border-teal-400 focus:ring-teal-50 text-slate-700'}`}
                 value={value}
                 onChange={(e) => handleChange(field, e.target.value)}
                 placeholder={placeholder}
                 />
-                <span className={`absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold ${isFilled ? `text-${color}-400` : 'text-slate-300'}`}>฿</span>
+                <span className={`absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold ${isFilled ? `opacity-50` : 'text-slate-300'}`}>฿</span>
                 {isFilled && (
                     <button 
                       type="button" 
                       onClick={() => clearField(field)}
-                      className="absolute -top-2 -right-2 bg-white rounded-full shadow-sm text-slate-300 hover:text-red-500 transition-colors"
+                      className="absolute -top-2 -right-2 bg-white rounded-full shadow-md text-slate-300 hover:text-red-500 transition-colors border border-slate-100 p-0.5"
                     >
                       <XCircle className="w-5 h-5" />
                     </button>
@@ -220,7 +235,7 @@ export const RecordPayment: React.FC = () => {
             >
               <Eraser className="w-4 h-4" />
               ล้างข้อมูลทั้งหมด
-            </button>
+           </button>
         </div>
       </div>
 
@@ -331,7 +346,7 @@ export const RecordPayment: React.FC = () => {
                         <p className="font-black mb-3 border-b border-slate-700 pb-2 flex items-center gap-2"><Keyboard className="w-4 h-4 text-teal-400" /> ลำดับข้อมูล (คั่นด้วยช่องว่างหรือ Tab)</p>
                         <ol className="grid grid-cols-2 gap-x-6 gap-y-1 list-decimal list-inside opacity-90 font-medium">
                             <li>ค่าที่ดิน</li><li>ค่าบ้าน</li><li>ค่าหุ้น</li><li>เงินฝาก</li>
-                            <li>สวัสดิการ</li><li>ประกัน</li><li>บริจาค</li><li>สินเชื่อ</li>
+                            <li>สวัสดิการ</li><li>ประกัน</li><li>บริจาค</li><li>สินเชื่อทั่วไป</li>
                         </ol>
                         <p className="mt-3 text-indigo-300 italic font-bold">สามารถคัดลอกทั้งแถวจาก Excel มาวางได้ทันที</p>
                     </div>
@@ -341,7 +356,7 @@ export const RecordPayment: React.FC = () => {
                 <input 
                     type="text"
                     placeholder="วางข้อมูลจาก Excel หรือพิมพ์ตัวเลขเว้นวรรค..."
-                    className="w-full p-5 pl-14 bg-white border border-indigo-200 rounded-3xl focus:ring-8 focus:ring-indigo-100 focus:border-indigo-400 outline-none transition-all font-mono text-indigo-700 shadow-sm text-lg"
+                    className="w-full p-5 pl-14 bg-white border-2 border-indigo-200 rounded-3xl focus:ring-8 focus:ring-indigo-100 focus:border-indigo-400 outline-none transition-all font-mono text-indigo-700 shadow-sm text-lg"
                     value={quickInput}
                     onChange={(e) => handleQuickInputChange(e.target.value)}
                 />
