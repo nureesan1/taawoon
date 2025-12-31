@@ -206,7 +206,10 @@ export const RecordPayment: React.FC = () => {
 
     if (success) {
       setIsSuccess(true);
-      // Removed automatic print here to allow manual choice with separated buttons
+      // Redirect to daily summary after short delay to show success state
+      setTimeout(() => {
+        setView('daily_summary');
+      }, 1500);
     }
   };
 
