@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../context/StoreContext';
-import { Search, FileText, TrendingUp, Filter, Clock, Download, Building, MapPin, Coins, PiggyBank, Wallet, Calendar } from 'lucide-react';
+import { Search, FileText, TrendingUp, Filter, Clock, Download, Building, MapPin, Coins, PiggyBank, Wallet, Calendar, Banknote, Landmark } from 'lucide-react';
 
 type SummaryPeriod = 'daily' | 'monthly' | 'yearly';
 
@@ -15,7 +15,7 @@ const getLocalDateString = (dateInput?: any) => {
 };
 
 export const DailySummary: React.FC = () => {
-  const { members } = useStore();
+  const { members, setView } = useStore();
   const [period, setPeriod] = useState<SummaryPeriod>('daily');
   const [selectedDate, setSelectedDate] = useState(getLocalDateString());
   const [searchTerm, setSearchTerm] = useState('');
@@ -53,8 +53,10 @@ export const DailySummary: React.FC = () => {
       savings: acc.savings + (Number(tx.savings) || 0),
       general: acc.general + (Number(tx.generalLoan) || 0),
       others: acc.others + (Number(tx.welfare) || 0) + (Number(tx.insurance) || 0) + (Number(tx.donation) || 0) + (Number(tx.others) || 0),
-      grandTotal: acc.grandTotal + (Number(tx.totalAmount) || 0)
-    }), { housing: 0, land: 0, shares: 0, savings: 0, general: 0, others: 0, grandTotal: 0 });
+      grandTotal: acc.grandTotal + (Number(tx.totalAmount) || 0),
+      cash: acc.cash + (tx.paymentMethod === 'cash' ? (Number(tx.totalAmount) || 0) : 0),
+      transfer: acc.transfer + (tx.paymentMethod === 'transfer' ? (Number(tx.totalAmount) || 0) : 0)
+    }), { housing: 0, land: 0, shares: 0, savings: 0, general: 0, others: 0, grandTotal: 0, cash: 0, transfer: 0 });
   }, [filteredTransactions]);
 
   const formatTHB = (num: number) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(num);
@@ -63,12 +65,24 @@ export const DailySummary: React.FC = () => {
     <div className="space-y-6 pb-24">
       {/* Date Picker Section */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 space-y-4">
-        <div className="flex items-center gap-3">
-           <div className="bg-teal-50 p-3 rounded-2xl text-teal-600"><Calendar className="w-6 h-6" /></div>
-           <div>
-              <h1 className="text-xl font-black text-slate-800 tracking-tight">สรุปรายงาน</h1>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{period} Report</p>
+        <div className="flex items-center justify-between gap-3">
+           <div className="flex items-center gap-3">
+              <div className="bg-teal-50 p-3 rounded-2xl text-teal-600"><Calendar className="w-6 h-6" /></div>
+              <div>
+                 <h1 className="text-xl font-black text-slate-800 tracking-tight">สรุปรายงาน</h1>
+                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{period} Report</p>
+              </div>
            </div>
+           
+           {/* Add Payment Button at the top right corner of the card */}
+           <button 
+             onClick={() => setView('record_payment')}
+             className="flex items-center gap-2 bg-[#064e3b] text-white px-4 py-2.5 rounded-2xl hover:bg-black transition-all shadow-lg shadow-teal-900/10 active:scale-95 font-bold text-xs"
+           >
+              <Banknote className="w-4 h-4" />
+              <span className="hidden sm:inline">บันทึกรับชำระ</span>
+              <span className="sm:hidden">รับชำระ</span>
+           </button>
         </div>
 
         <div className="flex flex-col gap-3">
@@ -89,28 +103,39 @@ export const DailySummary: React.FC = () => {
       </div>
 
       {/* Net Total Card */}
-      <div className="bg-[#064e3b] rounded-3xl p-8 text-white shadow-xl shadow-teal-900/10 flex flex-col items-center text-center space-y-2">
-          <p className="text-teal-300 font-bold uppercase text-[10px] tracking-[0.2em] mb-2">ยอดรับเงินสุทธิ</p>
-          <h2 className="text-4xl font-black tracking-tight">{formatTHB(totals.grandTotal)}</h2>
-          <div className="pt-4 flex gap-2">
-             <div className="bg-white/10 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">{filteredTransactions.length} รายการ</div>
+      <div className="bg-[#064e3b] rounded-3xl p-8 text-white shadow-xl shadow-teal-900/10 flex flex-col items-center text-center space-y-4">
+          <div className="space-y-1">
+             <p className="text-teal-300 font-bold uppercase text-[10px] tracking-[0.2em]">ยอดรับเงินสุทธิ</p>
+             <h2 className="text-4xl font-black tracking-tight">{formatTHB(totals.grandTotal)}</h2>
+          </div>
+          
+          <div className="flex gap-4 pt-2 w-full justify-center">
+             <div className="bg-white/10 px-4 py-2 rounded-2xl flex items-center gap-2">
+                <Banknote className="w-4 h-4 text-teal-300" />
+                <div className="text-left">
+                   <p className="text-[8px] uppercase font-bold text-teal-400 leading-none">เงินสด</p>
+                   <p className="text-sm font-black">{formatTHB(totals.cash)}</p>
+                </div>
+             </div>
+             <div className="bg-white/10 px-4 py-2 rounded-2xl flex items-center gap-2">
+                <Landmark className="w-4 h-4 text-blue-300" />
+                <div className="text-left">
+                   <p className="text-[8px] uppercase font-bold text-teal-400 leading-none">เงินโอน</p>
+                   <p className="text-sm font-black">{formatTHB(totals.transfer)}</p>
+                </div>
+             </div>
+          </div>
+
+          <div className="pt-2 flex gap-2">
+             <div className="bg-white/20 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">{filteredTransactions.length} รายการ</div>
              <button className="bg-teal-500 text-white px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1"><Download className="w-3 h-3" /> Export</button>
           </div>
-      </div>
-
-      {/* Categories Grid - 2 cols on mobile */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <SummaryMiniCard label="ค่าบ้าน" value={totals.housing} color="red" />
-          <SummaryMiniCard label="ค่าที่ดิน" value={totals.land} color="orange" />
-          <SummaryMiniCard label="สินเชื่อ" value={totals.general} color="amber" />
-          <SummaryMiniCard label="หุ้น" value={totals.shares} color="teal" />
-          <SummaryMiniCard label="เงินฝาก" value={totals.savings} color="emerald" />
       </div>
 
       {/* Transaction List - Mobile Cards */}
       <div className="space-y-3">
          <div className="flex items-center justify-between px-2">
-            <h3 className="font-black text-slate-800 tracking-tight">ประวัติรายการ</h3>
+            <h3 className="font-black text-slate-800 tracking-tight">รายการรายบุคคล</h3>
             <div className="relative">
                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                <input type="text" placeholder="ค้นหา..." className="pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-full text-xs outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}/>
@@ -120,19 +145,22 @@ export const DailySummary: React.FC = () => {
          <div className="space-y-3">
             {filteredTransactions.map(tx => (
                <div key={tx.id} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between transition-transform active:scale-[0.98]">
-                  <div className="flex gap-4 items-center">
-                     <div className="w-12 h-12 bg-slate-50 rounded-2xl flex flex-col items-center justify-center text-slate-400">
-                        <span className="text-[10px] font-bold uppercase">{new Date(tx.date).toLocaleDateString('en-US', {month: 'short'})}</span>
-                        <span className="text-lg font-black leading-none">{new Date(tx.date).getDate()}</span>
+                  <div className="flex gap-3 items-center">
+                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.paymentMethod === 'transfer' ? 'bg-blue-50 text-blue-600' : 'bg-teal-50 text-teal-600'}`}>
+                        {tx.paymentMethod === 'transfer' ? <Landmark className="w-5 h-5" /> : <Banknote className="w-5 h-5" />}
                      </div>
                      <div>
-                        <p className="font-black text-slate-800">{tx.memberName}</p>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{tx.memberCode} • {new Date(tx.timestamp).toLocaleTimeString('th-TH', {hour: '2-digit', minute: '2-digit'})}</p>
+                        <p className="font-black text-slate-800 text-sm leading-tight">{tx.memberName}</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
+                           {tx.memberCode} • {new Date(tx.timestamp).toLocaleTimeString('th-TH', {hour: '2-digit', minute: '2-digit'})}
+                        </p>
                      </div>
                   </div>
                   <div className="text-right">
-                     <p className="text-lg font-black text-teal-600">{formatTHB(tx.totalAmount)}</p>
-                     <span className="text-[8px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold uppercase">{tx.recordedBy}</span>
+                     <p className={`text-lg font-black ${tx.paymentMethod === 'transfer' ? 'text-blue-600' : 'text-teal-600'}`}>{formatTHB(tx.totalAmount)}</p>
+                     <span className="text-[8px] bg-slate-50 text-slate-400 px-2 py-0.5 rounded-full font-bold uppercase border border-slate-100">
+                        {tx.recordedBy}
+                     </span>
                   </div>
                </div>
             ))}

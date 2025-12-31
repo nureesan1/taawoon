@@ -26,6 +26,7 @@ export interface Transaction {
 
   totalAmount: number;
   recordedBy: string;
+  paymentMethod: 'cash' | 'transfer'; // เพิ่มฟิลด์ประเภทการรับเงิน
 }
 
 export interface Member {

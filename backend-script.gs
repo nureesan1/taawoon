@@ -11,7 +11,7 @@
  * 2. 'Transactions'
  *    Cols: 1:ID, 2:MemberID, 3:Date, 4:Timestamp, 5:Housing, 6:Land, 7:Shares, 
  *          8:Savings, 9:Welfare, 10:Insurance, 11:Donation, 12:GeneralLoan, 
- *          13:Others, 14:OthersNote, 15:TotalAmount, 16:RecordedBy
+ *          13:Others, 14:OthersNote, 15:TotalAmount, 16:RecordedBy, 17:PaymentMethod
  */
 
 function doPost(e) {
@@ -56,7 +56,8 @@ function doPost(e) {
           tx.others || 0, 
           tx.othersNote || '', 
           tx.totalAmount || 0, 
-          tx.recordedBy || 'System'
+          tx.recordedBy || 'System',
+          tx.paymentMethod || 'cash' // เพิ่มคอลัมน์ที่ 17
         ]);
         updateMemberBalancesFromTx(memberSheet, tx);
         return createResponse('success', 'บันทึกรายการรับชำระเงินสำเร็จ');
@@ -137,7 +138,8 @@ function getMembersData(memberSheet, transSheet) {
       others: tRows[j][12],
       othersNote: tRows[j][13],
       totalAmount: tRows[j][14],
-      recordedBy: tRows[j][15]
+      recordedBy: tRows[j][15],
+      paymentMethod: tRows[j][16] || 'cash' // ดึงข้อมูลคอลัมน์ที่ 17
     });
   }
 
