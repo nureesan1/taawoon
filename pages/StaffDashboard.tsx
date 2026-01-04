@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
 import { Member } from '../types';
-import { Search, UserPlus, DollarSign, Pencil, Trash2, Building2, MapPin, Coins, PiggyBank, Wallet, Phone, CreditCard } from 'lucide-react';
+import { Search, UserPlus, DollarSign, Pencil, Trash2, Building2, MapPin, Coins, PiggyBank, Wallet } from 'lucide-react';
 import { PaymentModal } from './PaymentModal';
 import { EditMemberModal } from './EditMemberModal';
 
@@ -105,12 +105,20 @@ export const StaffDashboard: React.FC = () => {
 
                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-50">
                   <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">หนี้บ้าน/ดิน</p>
-                    <p className="text-red-600 font-black">{formatTHB((member.housingLoanBalance || 0) + (member.landLoanBalance || 0))}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">หนี้บ้าน/ที่ดิน</p>
+                    <p className="text-red-600 font-black text-sm">{formatTHB((member.housingLoanBalance || 0) + (member.landLoanBalance || 0))}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">หุ้น/เงินฝาก</p>
-                    <p className="text-teal-600 font-black">{formatTHB((member.accumulatedShares || 0) + (member.savingsBalance || 0))}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">สินเชื่อทั่วไป</p>
+                    <p className="text-amber-600 font-black text-sm">{formatTHB(member.generalLoanBalance || 0)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">หุ้นสะสม</p>
+                    <p className="text-teal-600 font-black text-sm">{formatTHB(member.accumulatedShares || 0)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">เงินฝาก</p>
+                    <p className="text-emerald-600 font-black text-sm">{formatTHB(member.savingsBalance || 0)}</p>
                   </div>
                </div>
 
@@ -134,6 +142,7 @@ export const StaffDashboard: React.FC = () => {
                 <th className="px-6 py-5">รหัส</th>
                 <th className="px-6 py-5">ชื่อ-สกุล</th>
                 <th className="px-6 py-5 text-right">หนี้บ้าน/ที่ดิน</th>
+                <th className="px-6 py-5 text-right">สินเชื่อทั่วไป</th>
                 <th className="px-6 py-5 text-right">หุ้นสะสม</th>
                 <th className="px-6 py-5 text-right">เงินฝาก</th>
                 <th className="px-6 py-5 text-center">จัดการ</th>
@@ -146,6 +155,9 @@ export const StaffDashboard: React.FC = () => {
                   <td className="px-6 py-4 font-bold text-slate-800">{member.name}</td>
                   <td className="px-6 py-4 text-right">
                     <div className="text-red-600 font-bold">{formatTHB((member.housingLoanBalance || 0) + (member.landLoanBalance || 0))}</div>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="text-amber-600 font-bold">{formatTHB(member.generalLoanBalance || 0)}</div>
                   </td>
                   <td className="px-6 py-4 text-right text-teal-700 font-bold">{formatTHB(member.accumulatedShares)}</td>
                   <td className="px-6 py-4 text-right text-emerald-700 font-bold">{formatTHB(member.savingsBalance)}</td>
