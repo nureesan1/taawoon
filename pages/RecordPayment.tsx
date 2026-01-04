@@ -29,6 +29,12 @@ const DEFAULT_DESCRIPTIONS = [
   "อื่นๆ"
 ];
 
+const BANK_ACCOUNTS = [
+  { label: "ธนาคารอิสลาม เลขที่ 054-1-06123-2", bank: "ธนาคารอิสลาม", accNo: "054-1-06123-2" },
+  { label: "ธนาคารอิสลาม เลขที่ 054-1-06120-8", bank: "ธนาคารอิสลาม", accNo: "054-1-06120-8" },
+  { label: "ธนาคารอิสลาม เลขที่ 054-1-20613-3", bank: "ธนาคารอิสลาม", accNo: "054-1-20613-3" },
+];
+
 // Thai Baht Text Conversion Utility
 function thaiBahtText(num: number): string {
   if (num === 0) return "ศูนย์บาทถ้วน";
@@ -392,7 +398,7 @@ export const RecordPayment: React.FC = () => {
                         value={item.satang} 
                         onChange={(e) => updateItem(item.id, 'satang', e.target.value)}
                         onFocus={(e) => e.target.select()}
-                        className="w-full h-full p-3 text-center bg-transparent outline-none font-bold"
+                        className="w-full h-10 px-2 text-center bg-transparent outline-none font-bold"
                       />
                     </td>
                     <td className="print:hidden p-0 border-none">
@@ -445,14 +451,48 @@ export const RecordPayment: React.FC = () => {
                    
                    {paymentMethod === 'transfer' && (
                      <div className="mt-6 space-y-4 animate-in fade-in slide-in-from-top-2 print:block">
-                        <div className="grid grid-cols-2 gap-4">
-                           <div className="space-y-1">
-                              <label className="text-[9px] font-bold text-slate-400">ธนาคาร</label>
-                              <input type="text" placeholder="ระบุธนาคาร..." className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none font-bold" value={transferDetails.bank} onChange={(e) => setTransferDetails({...transferDetails, bank: e.target.value})} />
+                        <div className="space-y-4">
+                           <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-2">บัญชีธนาคาร</label>
+                              <select 
+                                className="w-full p-4 bg-white border-2 border-slate-200 rounded-2xl outline-none font-bold text-slate-700 focus:border-blue-500 transition-all appearance-none"
+                                value={`${transferDetails.bank} ${transferDetails.account}`}
+                                onChange={(e) => {
+                                  const selected = BANK_ACCOUNTS.find(acc => `${acc.bank} ${acc.accNo}` === e.target.value);
+                                  if (selected) {
+                                    setTransferDetails({
+                                      ...transferDetails,
+                                      bank: selected.bank,
+                                      account: selected.accNo
+                                    });
+                                  } else {
+                                    setTransferDetails({
+                                      ...transferDetails,
+                                      bank: '',
+                                      account: ''
+                                    });
+                                  }
+                                }}
+                              >
+                                <option value="">-- เลือกบัญชีธนาคาร --</option>
+                                {BANK_ACCOUNTS.map((acc, idx) => (
+                                  <option key={idx} value={`${acc.bank} ${acc.accNo}`}>
+                                    {acc.label}
+                                  </option>
+                                ))}
+                                <option value="manual">กรอกข้อมูลเอง...</option>
+                              </select>
                            </div>
-                           <div className="space-y-1">
-                              <label className="text-[9px] font-bold text-slate-400">เลขที่บัญชี/อ้างอิง</label>
-                              <input type="text" placeholder="ระบุเลขที่..." className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none font-bold" value={transferDetails.account} onChange={(e) => setTransferDetails({...transferDetails, account: e.target.value})} />
+
+                           <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-1">
+                                 <label className="text-[9px] font-bold text-slate-400">ธนาคาร</label>
+                                 <input type="text" placeholder="ระบุธนาคาร..." className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none font-bold" value={transferDetails.bank} onChange={(e) => setTransferDetails({...transferDetails, bank: e.target.value})} />
+                              </div>
+                              <div className="space-y-1">
+                                 <label className="text-[9px] font-bold text-slate-400">เลขที่บัญชี/อ้างอิง</label>
+                                 <input type="text" placeholder="ระบุเลขที่..." className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none font-bold" value={transferDetails.account} onChange={(e) => setTransferDetails({...transferDetails, account: e.target.value})} />
+                              </div>
                            </div>
                         </div>
                      </div>
