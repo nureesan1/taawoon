@@ -23,6 +23,9 @@ interface StoreContextType {
   setView: (view: AppView) => void;
   updateConfig: (newConfig: AppConfig) => void;
   refreshData: () => Promise<void>;
+  addMember: (member: Omit<Member, 'transactions'>) => Promise<boolean>;
+  updateMember: (id: string, data: Partial<Member>) => Promise<boolean>;
+  deleteMember: (id: string) => Promise<boolean>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -45,13 +48,18 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const callApi = async (action: string, payload: any = {}) => {
     if (!config.scriptUrl) throw new Error("Script URL not configured");
-    const response = await fetch(config.scriptUrl, {
-      method: 'POST',
-      body: JSON.stringify({ action, ...payload })
-    });
-    const data = await response.json();
-    if (data.status === 'error') throw new Error(data.message);
-    return data;
+    try {
+      const response = await fetch(config.scriptUrl, {
+        method: 'POST',
+        body: JSON.stringify({ action, ...payload })
+      });
+      const data = await response.json();
+      if (data.status === 'error') throw new Error(data.message);
+      return data;
+    } catch (e) {
+      console.error("API Error:", e);
+      throw e;
+    }
   };
 
   const refreshData = useCallback(async () => {
@@ -73,6 +81,58 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   useEffect(() => {
     refreshData();
   }, [refreshData]);
+
+  const addTransaction = async (txData: Omit<Transaction, 'id' | 'timestamp'>) => {
+    const newTx: Transaction = {
+      ...txData,
+      id: 'T' + Date.now(),
+      timestamp: Date.now()
+    };
+
+    if (config.useGoogleSheets) {
+      setIsLoading(true);
+      try {
+        await callApi('addTransaction', { transaction: newTx });
+        await refreshData();
+        return true;
+      } catch (e) {
+        alert("บันทึกไม่สำเร็จ: " + e);
+        return false;
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      // Local/Mock logic
+      setMembers(prev => prev.map(m => {
+        if (m.id === txData.memberId) {
+          const updatedMember = { ...m };
+          updatedMember.accumulatedShares += Number(txData.shares || 0);
+          updatedMember.savingsBalance += Number(txData.savings || 0);
+          updatedMember.housingLoanBalance = Math.max(0, updatedMember.housingLoanBalance - Number(txData.housing || 0));
+          updatedMember.landLoanBalance = Math.max(0, updatedMember.landLoanBalance - Number(txData.land || 0));
+          updatedMember.generalLoanBalance = Math.max(0, updatedMember.generalLoanBalance - Number(txData.generalLoan || 0));
+          updatedMember.transactions = [newTx, ...m.transactions];
+          return updatedMember;
+        }
+        return m;
+      }));
+      // Add to Ledger too for consistency in mock mode
+      const member = members.find(m => m.id === txData.memberId);
+      const ledgerEntry: LedgerTransaction = {
+        id: 'L' + newTx.timestamp,
+        date: newTx.date,
+        type: 'income',
+        category: 'รายได้',
+        description: 'รับชำระเงินจากสมาชิก: ' + (member?.name || 'ไม่ระบุ'),
+        amount: newTx.totalAmount,
+        paymentMethod: newTx.paymentMethod,
+        recordedBy: newTx.recordedBy,
+        timestamp: newTx.timestamp
+      };
+      setLedger(prev => [ledgerEntry, ...prev]);
+      return true;
+    }
+  };
 
   const addLedgerItem = async (itemData: Omit<LedgerTransaction, 'id' | 'timestamp'>) => {
     const newItem: LedgerTransaction = {
@@ -136,6 +196,64 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
+  const addMember = async (memberData: Omit<Member, 'transactions'>) => {
+    const newMember: Member = { ...memberData, transactions: [] };
+    if (config.useGoogleSheets) {
+      setIsLoading(true);
+      try {
+        await callApi('addMember', { member: newMember });
+        await refreshData();
+        return true;
+      } catch (e) {
+        console.error(e);
+        return false;
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      setMembers(prev => [...prev, newMember]);
+      return true;
+    }
+  };
+
+  const updateMember = async (id: string, data: Partial<Member>) => {
+    if (config.useGoogleSheets) {
+      setIsLoading(true);
+      try {
+        await callApi('updateMember', { id, data });
+        await refreshData();
+        return true;
+      } catch (e) {
+        console.error(e);
+        return false;
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      setMembers(prev => prev.map(m => m.id === id ? { ...m, ...data } : m));
+      return true;
+    }
+  };
+
+  const deleteMember = async (id: string) => {
+    if (config.useGoogleSheets) {
+      setIsLoading(true);
+      try {
+        await callApi('deleteMember', { id });
+        await refreshData();
+        return true;
+      } catch (e) {
+        console.error(e);
+        return false;
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      setMembers(prev => prev.filter(m => m.id !== id));
+      return true;
+    }
+  };
+
   const login = (role: UserRole, memberId?: string) => {
     if (role === UserRole.MEMBER && memberId) {
       const member = members.find(m => m.id === memberId);
@@ -151,7 +269,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const logout = () => { setCurrentUser(null); setCurrentView('dashboard'); };
   const getMember = (id: string) => members.find(m => m.id === id);
-  const addTransaction = async (txData: any) => { /* existing logic */ return true; };
   const setView = (view: AppView) => setCurrentView(view);
   const updateConfig = (c: AppConfig) => { setConfig(c); localStorage.setItem('app_config', JSON.stringify(c)); };
 
@@ -159,7 +276,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     <StoreContext.Provider value={{ 
       members, ledger, currentUser, currentView, config, isLoading,
       login, logout, addTransaction, addLedgerItem, deleteLedgerItem, updateLedgerItem,
-      getMember, setView, updateConfig, refreshData 
+      getMember, setView, updateConfig, refreshData, addMember, updateMember, deleteMember
     }}>
       {children}
       {isLoading && <LoadingOverlay />}

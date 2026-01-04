@@ -4,13 +4,17 @@ import { useStore } from '../context/StoreContext';
 import { 
   Plus, Search, TrendingUp, TrendingDown, Wallet, Banknote, 
   Landmark, Filter, Calendar, Trash2, Edit2, CheckCircle2,
-  ChevronDown, ChevronUp, FileText, Info
+  ChevronDown, ChevronUp, FileText, Info, Sparkles
 } from 'lucide-react';
 import { LedgerTransaction, TransactionType, PaymentMethod } from '../types';
 
 const CATEGORIES = {
-  income: ['ขายสินค้า', 'ค่าบริการ', 'เงินบริจาค', 'ดอกเบี้ยรับ', 'อื่นๆ'],
-  expense: ['ค่าเช่า', 'ค่าน้ำ-ไฟ', 'ค่าอินเทอร์เน็ต', 'ค่าเดินทาง', 'ค่าวัสดุ', 'ค่าแรง', 'เบี้ยเลี้ยง', 'อื่นๆ']
+  income: ['รายได้', 'รายได้น้ำประปา', 'ขายสินค้า', 'ค่าบริการ', 'อื่นๆ'],
+  expense: [
+    'เบี้ยประชุม', 'ค่าน้ำมัน', 'ค่าเช่า', 'ค่าน้ำ', 'ค่าไฟ', 
+    'ค่าอินเทอร์เน็ต', 'ค่าเดินทาง', 'ค่าวัสดุ', 'ค่าแรง', 
+    'ค่าจ้างพนักงาน', 'อื่นๆ'
+  ]
 };
 
 export const FinancialTracker: React.FC = () => {
@@ -96,6 +100,23 @@ export const FinancialTracker: React.FC = () => {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       
+      {/* Helper Persona Header */}
+      <div className="bg-gradient-to-r from-teal-600 to-emerald-700 p-6 rounded-[2rem] text-white shadow-lg flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
+            <Sparkles className="w-8 h-8 text-yellow-300" />
+          </div>
+          <div>
+            <h2 className="text-xl font-black tracking-tight">ผู้ช่วยอัจฉริยะด้านการเงิน</h2>
+            <p className="text-teal-100 text-xs font-bold opacity-80 uppercase tracking-widest mt-0.5">Financial Smart Assistant</p>
+          </div>
+        </div>
+        <div className="hidden md:block text-right">
+          <p className="text-[10px] font-black opacity-60 uppercase tracking-widest">ยินดีต้อนรับ</p>
+          <p className="font-bold">{currentUser?.name}</p>
+        </div>
+      </div>
+
       {/* Quick Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <SummaryCard 
@@ -129,7 +150,7 @@ export const FinancialTracker: React.FC = () => {
             <input 
               type="text" 
               placeholder="ค้นหารายการ..." 
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-teal-500 text-sm"
+              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-teal-500 text-sm font-bold"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -192,7 +213,7 @@ export const FinancialTracker: React.FC = () => {
 
             <div className="space-y-2">
               <label className="text-xs font-black text-slate-400 uppercase tracking-widest">จำนวนเงิน (บาท)</label>
-              <input type="number" required min="1" step="0.01" value={formData.amount} onChange={(e) => setFormData({...formData, amount: e.target.value})} placeholder="0.00" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-teal-500 font-black text-teal-700 text-xl" />
+              <input type="number" required min="0.01" step="0.01" value={formData.amount} onChange={(e) => setFormData({...formData, amount: e.target.value})} placeholder="0.00" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-teal-500 font-black text-teal-700 text-xl" />
             </div>
 
             <div className="space-y-2">

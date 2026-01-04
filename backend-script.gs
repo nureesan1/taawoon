@@ -2,11 +2,6 @@
 /**
  * Google Apps Script for Taawoon Cooperative System (Enhanced Version)
  * ------------------------------------------------------------------
- * Sheets Required:
- * 1. 'Members' (15 Columns)
- * 2. 'Transactions' (Member Payments - 25 Columns)
- * 3. 'Ledger' (Cooperative Accounting - 10 Columns)
- *    Cols: ID, Date, Type, Category, Description, Amount, Method, Staff, Note, Timestamp
  */
 
 function doPost(e) {
@@ -15,7 +10,6 @@ function doPost(e) {
   var transSheet = ss.getSheetByName('Transactions');
   var ledgerSheet = ss.getSheetByName('Ledger');
   
-  // Create sheets if they don't exist
   if (!memberSheet) memberSheet = ss.insertSheet('Members');
   if (!transSheet) transSheet = ss.insertSheet('Transactions');
   if (!ledgerSheet) ledgerSheet = ss.insertSheet('Ledger');
@@ -37,22 +31,38 @@ function doPost(e) {
           ledger: getLedgerData(ledgerSheet)
         });
 
-      // --- Member Payments ---
       case 'addTransaction':
         var tx = requestData.transaction;
+        
+        // 1. บันทึกลง Transaction Sheet (ประวัติรายบุคคล)
         transSheet.appendRow([
           tx.id, tx.memberId, tx.date, tx.timestamp, 
           tx.housing || 0, tx.land || 0, tx.shares || 0, tx.savings || 0, 
           tx.welfare || 0, tx.insurance || 0, tx.donation || 0, tx.generalLoan || 0, 
           tx.others || 0, tx.othersNote || '', tx.totalAmount || 0, 
-          tx.recordedBy || 'System', tx.paymentMethod || 'cash',
-          tx.qtyHousing || 0, tx.qtyLand || 0, tx.qtyShares || 0, tx.qtySavings || 0,
-          tx.qtyWelfare || 0, tx.qtyInsurance || 0, tx.qtyDonation || 0, tx.qtyGeneralLoan || 0
+          tx.recordedBy || 'System', tx.paymentMethod || 'cash'
         ]);
-        updateMemberBalancesFromTx(memberSheet, tx);
-        return createResponse('success', 'บันทึกรายการรับชำระสำเร็จ');
 
-      // --- Cooperative Accounting (Ledger) ---
+        // 2. บันทึกลง Ledger Sheet (รายรับ-รายจ่ายส่วนกลาง) - อัตโนมัติ
+        var memberName = getMemberNameById(memberSheet, tx.memberId);
+        ledgerSheet.appendRow([
+          'L' + tx.timestamp, 
+          tx.date, 
+          'income', 
+          'รายได้', 
+          'รับชำระเงินจากสมาชิก: ' + memberName, 
+          tx.totalAmount, 
+          tx.paymentMethod, 
+          tx.recordedBy, 
+          'บันทึกอัตโนมัติจากระบบรับชำระเงินสมาชิก', 
+          tx.timestamp
+        ]);
+
+        // 3. อัปเดตยอดคงเหลือใน Member Sheet
+        updateMemberBalancesFromTx(memberSheet, tx);
+        
+        return createResponse('success', 'บันทึกการชำระเงินและรายรับเข้าบัญชีกลางสำเร็จ');
+
       case 'addLedgerItem':
         var item = requestData.item;
         ledgerSheet.appendRow([
@@ -66,11 +76,6 @@ function doPost(e) {
         deleteRowById(ledgerSheet, requestData.id);
         return createResponse('success', 'ลบรายการบัญชีสำเร็จ');
 
-      case 'updateLedgerItem':
-        updateRowById(ledgerSheet, requestData.id, requestData.data);
-        return createResponse('success', 'แก้ไขรายการบัญชีสำเร็จ');
-
-      // --- Member Management ---
       case 'addMember':
         var m = requestData.member;
         memberSheet.appendRow([
@@ -98,6 +103,14 @@ function doPost(e) {
 }
 
 // --- Helper Functions ---
+
+function getMemberNameById(sheet, id) {
+  var data = sheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0] == id) return data[i][1];
+  }
+  return "ไม่ระบุชื่อ";
+}
 
 function createResponse(status, data) {
   var output = { status: status };
@@ -160,7 +173,7 @@ function getLedgerData(sheet) {
 function updateMemberBalancesFromTx(sheet, tx) {
   var data = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
-    if (data[i][0] === tx.memberId) {
+    if (data[i][0] == tx.memberId) {
       var row = i + 1;
       sheet.getRange(row, 9).setValue((Number(data[i][8]) || 0) + (Number(tx.shares) || 0));
       sheet.getRange(row, 10).setValue((Number(data[i][9]) || 0) + (Number(tx.savings) || 0));
@@ -175,7 +188,7 @@ function updateMemberBalancesFromTx(sheet, tx) {
 function updateMemberData(sheet, id, updateData) {
   var data = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
-    if (data[i][0] === id) {
+    if (data[i][0] == id) {
       var row = i + 1;
       if (updateData.name !== undefined) sheet.getRange(row, 2).setValue(updateData.name);
       if (updateData.memberType !== undefined) sheet.getRange(row, 8).setValue(updateData.memberType);
@@ -197,27 +210,10 @@ function updateMemberData(sheet, id, updateData) {
   }
 }
 
-function updateRowById(sheet, id, updateData) {
-  var data = sheet.getDataRange().getValues();
-  var headers = data[0];
-  for (var i = 1; i < data.length; i++) {
-    if (data[i][0] === id) {
-      var row = i + 1;
-      for (var key in updateData) {
-        var colIndex = headers.indexOf(key);
-        if (colIndex !== -1) {
-          sheet.getRange(row, colIndex + 1).setValue(updateData[key]);
-        }
-      }
-      break;
-    }
-  }
-}
-
 function deleteRowById(sheet, id) {
   var data = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
-    if (data[i][0] === id) {
+    if (data[i][0] == id) {
       sheet.deleteRow(i + 1);
       break;
     }
