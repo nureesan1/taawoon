@@ -207,7 +207,9 @@ export const RecordPayment: React.FC = () => {
       ...txData,
       totalAmount: grandTotal,
       recordedBy: currentUser?.name || 'Unknown',
-      paymentMethod
+      paymentMethod,
+      bankName: paymentMethod === 'transfer' ? transferDetails.bank : undefined,
+      bankAccount: paymentMethod === 'transfer' ? transferDetails.account : undefined
     });
 
     if (success) {

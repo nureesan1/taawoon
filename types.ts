@@ -37,6 +37,8 @@ export interface Transaction {
   totalAmount: number;
   recordedBy: string;
   paymentMethod: PaymentMethod;
+  bankName?: string;
+  bankAccount?: string;
 }
 
 export interface Member {

@@ -1,8 +1,16 @@
 
 /**
- * Google Apps Script for Taawoon Cooperative System (Enhanced Version)
- * ------------------------------------------------------------------
+ * Google Apps Script for Taawoon Cooperative System (Enhanced Version for New Deployment)
+ * -------------------------------------------------------------------------------------
  */
+
+function doOptions(e) {
+  return ContentService.createTextOutput("")
+    .setMimeType(ContentService.MimeType.TEXT)
+    .setHeader("Access-Control-Allow-Origin", "*")
+    .setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+    .setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
 
 function doPost(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -35,12 +43,14 @@ function doPost(e) {
         var tx = requestData.transaction;
         
         // 1. บันทึกลง Transaction Sheet (ประวัติรายบุคคล)
+        // เพิ่มคอลัมน์ bankName และ bankAccount
         transSheet.appendRow([
           tx.id, tx.memberId, tx.date, tx.timestamp, 
           tx.housing || 0, tx.land || 0, tx.shares || 0, tx.savings || 0, 
           tx.welfare || 0, tx.insurance || 0, tx.donation || 0, tx.generalLoan || 0, 
           tx.others || 0, tx.othersNote || '', tx.totalAmount || 0, 
-          tx.recordedBy || 'System', tx.paymentMethod || 'cash'
+          tx.recordedBy || 'System', tx.paymentMethod || 'cash',
+          tx.bankName || '', tx.bankAccount || ''
         ]);
 
         // 2. บันทึกลง Ledger Sheet (รายรับ-รายจ่ายส่วนกลาง) - อัตโนมัติ
@@ -50,11 +60,11 @@ function doPost(e) {
           tx.date, 
           'income', 
           'รายได้', 
-          'รับชำระเงินจากสมาชิก: ' + memberName, 
+          'รับชำระเงินจากสมาชิก: ' + memberName + (tx.paymentMethod === 'transfer' ? ' (' + tx.bankName + ')' : ''), 
           tx.totalAmount, 
           tx.paymentMethod, 
           tx.recordedBy, 
-          'บันทึกอัตโนมัติจากระบบรับชำระเงินสมาชิก', 
+          'บันทึกอัตโนมัติจากระบบรับชำระเงินสมาชิก' + (tx.bankAccount ? ' เลขที่อ้างอิง: ' + tx.bankAccount : ''), 
           tx.timestamp
         ]);
 
@@ -118,7 +128,10 @@ function createResponse(status, data) {
     if (typeof data === 'object') Object.assign(output, data);
     else output.message = data;
   } else output.message = data;
-  return ContentService.createTextOutput(JSON.stringify(output)).setMimeType(ContentService.MimeType.JSON);
+  
+  return ContentService.createTextOutput(JSON.stringify(output))
+    .setMimeType(ContentService.MimeType.JSON)
+    .setHeader("Access-Control-Allow-Origin", "*");
 }
 
 function getMembersData(memberSheet, transSheet) {
@@ -135,7 +148,9 @@ function getMembersData(memberSheet, transSheet) {
       housing: tRows[j][4], land: tRows[j][5], shares: tRows[j][6], savings: tRows[j][7],
       welfare: tRows[j][8], insurance: tRows[j][9], donation: tRows[j][10], generalLoan: tRows[j][11],
       others: tRows[j][12], othersNote: tRows[j][13], totalAmount: tRows[j][14], recordedBy: tRows[j][15],
-      paymentMethod: tRows[j][16] || 'cash'
+      paymentMethod: tRows[j][16] || 'cash',
+      bankName: tRows[j][17] || '',
+      bankAccount: tRows[j][18] || ''
     });
   }
 
