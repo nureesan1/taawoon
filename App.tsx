@@ -12,6 +12,7 @@ import { Settings } from './pages/Settings';
 import { MemberManagement } from './pages/MemberManagement';
 import { DailySummary } from './pages/DailySummary';
 import { FinancialTracker } from './pages/FinancialTracker';
+import { PaymentHistory } from './pages/PaymentHistory';
 import { UserRole } from './types';
 
 const AppContent: React.FC = () => {
@@ -26,9 +27,11 @@ const AppContent: React.FC = () => {
       {/* Member Views */}
       {currentUser.role === UserRole.MEMBER && currentView === 'dashboard' && <MemberDashboard />}
       {currentUser.role === UserRole.MEMBER && currentView === 'member_profile' && <MemberProfile />}
+      {currentUser.role === UserRole.MEMBER && currentView === 'payment_history' && <PaymentHistory />}
       
       {/* Staff Views */}
       {currentUser.role === UserRole.STAFF && currentView === 'dashboard' && <StaffDashboard />}
+      {currentUser.role === UserRole.STAFF && currentView === 'payment_history' && <PaymentHistory />}
       {currentUser.role === UserRole.STAFF && currentView === 'register_member' && <RegisterMember />}
       {currentUser.role === UserRole.STAFF && currentView === 'record_payment' && <RecordPayment />}
       {currentUser.role === UserRole.STAFF && currentView === 'accounting' && <FinancialTracker />}

@@ -52,7 +52,8 @@ export const DailySummary: React.FC = () => {
       shares: acc.shares + (Number(tx.shares) || 0),
       savings: acc.savings + (Number(tx.savings) || 0),
       general: acc.general + (Number(tx.generalLoan) || 0),
-      others: acc.others + (Number(tx.welfare) || 0) + (Number(tx.insurance) || 0) + (Number(tx.donation) || 0) + (Number(tx.others) || 0),
+      // Fix: Removed access to non-existent property 'tx.others' to fix TS error
+      others: acc.others + (Number(tx.welfare) || 0) + (Number(tx.insurance) || 0) + (Number(tx.donation) || 0),
       grandTotal: acc.grandTotal + (Number(tx.totalAmount) || 0),
       cash: acc.cash + (tx.paymentMethod === 'cash' ? (Number(tx.totalAmount) || 0) : 0),
       transfer: acc.transfer + (tx.paymentMethod === 'transfer' ? (Number(tx.totalAmount) || 0) : 0)

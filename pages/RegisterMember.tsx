@@ -64,7 +64,9 @@ export const RegisterMember: React.FC = () => {
       return;
     }
 
+    // Fix: Added missing 'id' property as it is required by Omit<Member, 'transactions'>
     const success = await addMember({
+      id: Date.now().toString(),
       name: `${formData.firstName} ${formData.lastName}`,
       memberCode: getNextMemberCode(),
       accumulatedShares: Number(formData.initialShares),
@@ -152,7 +154,9 @@ export const RegisterMember: React.FC = () => {
           const nextId = currentMaxId + 1 + i;
           const memberCode = `M-${nextId.toString().padStart(3, '0')}`;
 
+          // Fix: Added missing 'id' property as it is required by Omit<Member, 'transactions'>
           const success = await addMember({
+            id: (Date.now() + i).toString(),
             name: `${row.firstName} ${row.lastName}`,
             memberCode: memberCode, 
             accumulatedShares: row.initialShares,
