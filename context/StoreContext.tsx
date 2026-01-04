@@ -26,17 +26,18 @@ interface StoreContextType {
   addMember: (member: Omit<Member, 'transactions'>) => Promise<boolean>;
   updateMember: (id: string, data: Partial<Member>) => Promise<boolean>;
   deleteMember: (id: string) => Promise<boolean>;
+  initDatabase: () => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 const DEFAULT_CONFIG: AppConfig = {
   useGoogleSheets: true,
-  scriptUrl: 'https://script.google.com/macros/s/AKfycbzMokV0Pc8OpMXGFuK1ClXKMBsF-rEX3HJ4ycqjLwhZSj1zGW8lunhChvKIuDm2bC-oqA/exec'
+  scriptUrl: 'https://script.google.com/macros/s/AKfycbysBRuhgJX2wGJf2UlrhnPS_3YS86KDee790d4ZOoNWo9idLHRjFrYSs_U47wOHFeu6dw/exec'
 };
 
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [members, setMembers] = useState<Member[]>(MOCK_MEMBERS);
+  const [members, setMembers] = useState<Member[]>([]); // เริ่มต้นเป็นอาเรย์ว่าง
   const [ledger, setLedger] = useState<LedgerTransaction[]>([]);
   const [currentUser, setCurrentUser] = useState<{ role: UserRole; memberId?: string; name?: string } | null>(null);
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
@@ -47,23 +48,38 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [isLoading, setIsLoading] = useState(false);
 
   const callApi = async (action: string, payload: any = {}) => {
-    if (!config.scriptUrl) throw new Error("Script URL not configured");
+    if (!config.scriptUrl) {
+      console.warn("No script URL configured");
+      return null;
+    }
+    
     try {
       const response = await fetch(config.scriptUrl, {
         method: 'POST',
-        body: JSON.stringify({ action, ...payload })
+        redirect: 'follow', // จำเป็นสำหรับ GAS
+        body: JSON.stringify({ action, ...payload }),
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8',
+        }
       });
+      
+      if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+      
       const data = await response.json();
       if (data.status === 'error') throw new Error(data.message);
       return data;
     } catch (e) {
-      console.error("API Error:", e);
+      console.error("API Error during " + action + ":", e);
       throw e;
     }
   };
 
   const refreshData = useCallback(async () => {
-    if (!config.useGoogleSheets || !config.scriptUrl) return;
+    if (!config.useGoogleSheets || !config.scriptUrl) {
+      setMembers(MOCK_MEMBERS); // ใช้ Mock ถ้าไม่ได้ตั้งค่าเชื่อมต่อ
+      return;
+    }
+    
     setIsLoading(true);
     try {
       const data = await callApi('getData');
@@ -73,6 +89,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
     } catch (error) {
       console.error("Failed to fetch data:", error);
+      // ถ้าดึงข้อมูลไม่สำเร็จ อาจแสดงข้อความเตือน หรือคงค่าเดิมไว้
     } finally {
       setIsLoading(false);
     }
@@ -81,6 +98,19 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   useEffect(() => {
     refreshData();
   }, [refreshData]);
+
+  const initDatabase = async () => {
+    setIsLoading(true);
+    try {
+      await callApi('initDatabase');
+      alert('สร้างหัวตารางสำเร็จ');
+      await refreshData();
+    } catch (e) {
+      alert('ล้มเหลว: ' + e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const addTransaction = async (txData: Omit<Transaction, 'id' | 'timestamp'>) => {
     const newTx: Transaction = {
@@ -102,7 +132,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setIsLoading(false);
       }
     } else {
-      // Local/Mock logic
+      // Local logic
       setMembers(prev => prev.map(m => {
         if (m.id === txData.memberId) {
           const updatedMember = { ...m };
@@ -116,30 +146,12 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
         return m;
       }));
-      // Add to Ledger too for consistency in mock mode
-      const member = members.find(m => m.id === txData.memberId);
-      const ledgerEntry: LedgerTransaction = {
-        id: 'L' + newTx.timestamp,
-        date: newTx.date,
-        type: 'income',
-        category: 'รายได้',
-        description: 'รับชำระเงินจากสมาชิก: ' + (member?.name || 'ไม่ระบุ'),
-        amount: newTx.totalAmount,
-        paymentMethod: newTx.paymentMethod,
-        recordedBy: newTx.recordedBy,
-        timestamp: newTx.timestamp
-      };
-      setLedger(prev => [ledgerEntry, ...prev]);
       return true;
     }
   };
 
   const addLedgerItem = async (itemData: Omit<LedgerTransaction, 'id' | 'timestamp'>) => {
-    const newItem: LedgerTransaction = {
-      ...itemData,
-      id: 'L' + Date.now(),
-      timestamp: Date.now()
-    };
+    const newItem: LedgerTransaction = { ...itemData, id: 'L' + Date.now(), timestamp: Date.now() };
     if (config.useGoogleSheets) {
       setIsLoading(true);
       try {
@@ -276,7 +288,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     <StoreContext.Provider value={{ 
       members, ledger, currentUser, currentView, config, isLoading,
       login, logout, addTransaction, addLedgerItem, deleteLedgerItem, updateLedgerItem,
-      getMember, setView, updateConfig, refreshData, addMember, updateMember, deleteMember
+      getMember, setView, updateConfig, refreshData, addMember, updateMember, deleteMember, initDatabase
     }}>
       {children}
       {isLoading && <LoadingOverlay />}

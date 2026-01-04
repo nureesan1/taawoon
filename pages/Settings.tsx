@@ -1,9 +1,10 @@
+
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
-import { Save, Database, ShieldAlert, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Save, Database, ShieldAlert, CheckCircle2, RefreshCw, Wand2 } from 'lucide-react';
 
 export const Settings: React.FC = () => {
-  const { config, updateConfig, refreshData, setView } = useStore();
+  const { config, updateConfig, refreshData, initDatabase } = useStore();
   const [formData, setFormData] = useState(config);
   const [isSaved, setIsSaved] = useState(false);
 
@@ -73,21 +74,17 @@ export const Settings: React.FC = () => {
                 <div className="bg-blue-50 text-blue-800 p-4 rounded-lg text-sm border border-blue-100 flex gap-3">
                     <ShieldAlert className="w-5 h-5 flex-shrink-0" />
                     <div>
-                        <p className="font-bold mb-1">คำแนะนำการติดตั้ง</p>
+                        <p className="font-bold mb-1">คำแนะนำสำคัญ</p>
                         <ol className="list-decimal pl-4 space-y-1 opacity-90">
-                            <li>สร้าง Google Sheet และสร้าง Sheet ชื่อ 'Members' และ 'Transactions'</li>
-                            <li>ไปที่ Extensions {'>'} Apps Script</li>
-                            <li>วางโค้ด Script ที่ได้รับจากระบบ</li>
-                            <li>กด Deploy {'>'} New Deployment {'>'} Web App</li>
-                            <li>ตั้งค่า Who has access เป็น <strong>Anyone</strong></li>
-                            <li>นำ URL ที่ได้มาวางในช่องด้านบน</li>
+                            <li>ตรวจสอบว่า Deploy สคริปต์เป็น <strong>"Anyone"</strong> แล้ว</li>
+                            <li>หากเป็นไฟล์ Google Sheets ใหม่ ให้กดปุ่ม <strong>"Initialize Database"</strong> ด้านล่างเพื่อสร้างหัวตาราง</li>
                         </ol>
                     </div>
                 </div>
             </div>
           )}
 
-          <div className="pt-4 border-t border-slate-100 flex items-center gap-4">
+          <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center gap-4">
             <button 
                 onClick={handleSave}
                 className="flex items-center gap-2 bg-teal-600 text-white px-6 py-2.5 rounded-lg hover:bg-teal-700 font-medium shadow-md shadow-teal-200 active:scale-95 transition-all"
@@ -97,13 +94,22 @@ export const Settings: React.FC = () => {
             </button>
             
             {formData.useGoogleSheets && (
+                <>
                 <button 
                     onClick={refreshData}
                     className="flex items-center gap-2 px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                 >
                     <RefreshCw className="w-4 h-4" />
-                    ทดสอบการดึงข้อมูล
+                    ทดสอบดึงข้อมูล
                 </button>
+                <button 
+                    onClick={initDatabase}
+                    className="flex items-center gap-2 px-4 py-2.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors border border-amber-100"
+                >
+                    <Wand2 className="w-4 h-4" />
+                    Initialize Database
+                </button>
+                </>
             )}
           </div>
 
