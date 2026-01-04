@@ -1,22 +1,24 @@
 
 /**
- * Google Apps Script for Taawoon Cooperative System
- * ------------------------------------------------
+ * Google Apps Script for Taawoon Cooperative System (Enhanced Version)
+ * ------------------------------------------------------------------
  * Sheets Required:
  * 1. 'Members' (15 Columns)
- * 2. 'Transactions' (25 Columns)
- *    Cols 1-17: ID, MemberID, Date, Timestamp, Housing, Land, Shares, Savings, Welfare, Insurance, Donation, GenLoan, Others, Note, Total, Staff, Method
- *    Cols 18-25: QtyHousing, QtyLand, QtyShares, QtySavings, QtyWelfare, QtyInsurance, QtyDonation, QtyGenLoan
+ * 2. 'Transactions' (Member Payments - 25 Columns)
+ * 3. 'Ledger' (Cooperative Accounting - 10 Columns)
+ *    Cols: ID, Date, Type, Category, Description, Amount, Method, Staff, Note, Timestamp
  */
 
 function doPost(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var memberSheet = ss.getSheetByName('Members');
   var transSheet = ss.getSheetByName('Transactions');
+  var ledgerSheet = ss.getSheetByName('Ledger');
   
-  if (!memberSheet || !transSheet) {
-    return createResponse('error', 'ไม่พบแผ่นงาน Members หรือ Transactions');
-  }
+  // Create sheets if they don't exist
+  if (!memberSheet) memberSheet = ss.insertSheet('Members');
+  if (!transSheet) transSheet = ss.insertSheet('Transactions');
+  if (!ledgerSheet) ledgerSheet = ss.insertSheet('Ledger');
 
   var requestData;
   try {
@@ -30,8 +32,12 @@ function doPost(e) {
   try {
     switch (action) {
       case 'getData':
-        return createResponse('success', { members: getMembersData(memberSheet, transSheet) });
+        return createResponse('success', { 
+          members: getMembersData(memberSheet, transSheet),
+          ledger: getLedgerData(ledgerSheet)
+        });
 
+      // --- Member Payments ---
       case 'addTransaction':
         var tx = requestData.transaction;
         transSheet.appendRow([
@@ -40,14 +46,31 @@ function doPost(e) {
           tx.welfare || 0, tx.insurance || 0, tx.donation || 0, tx.generalLoan || 0, 
           tx.others || 0, tx.othersNote || '', tx.totalAmount || 0, 
           tx.recordedBy || 'System', tx.paymentMethod || 'cash',
-          // New Quantity Columns (18-25)
           tx.qtyHousing || 0, tx.qtyLand || 0, tx.qtyShares || 0, tx.qtySavings || 0,
           tx.qtyWelfare || 0, tx.qtyInsurance || 0, tx.qtyDonation || 0, tx.qtyGeneralLoan || 0
         ]);
         updateMemberBalancesFromTx(memberSheet, tx);
-        return createResponse('success', 'บันทึกรายการสำเร็จ');
+        return createResponse('success', 'บันทึกรายการรับชำระสำเร็จ');
 
-      // ... existing cases (addMember, updateMember, deleteMember) ...
+      // --- Cooperative Accounting (Ledger) ---
+      case 'addLedgerItem':
+        var item = requestData.item;
+        ledgerSheet.appendRow([
+          item.id, item.date, item.type, item.category, 
+          item.description, item.amount, item.paymentMethod, 
+          item.recordedBy, item.note || '', item.timestamp
+        ]);
+        return createResponse('success', 'บันทึกรายรับ-รายจ่ายสำเร็จ');
+
+      case 'deleteLedgerItem':
+        deleteRowById(ledgerSheet, requestData.id);
+        return createResponse('success', 'ลบรายการบัญชีสำเร็จ');
+
+      case 'updateLedgerItem':
+        updateRowById(ledgerSheet, requestData.id, requestData.data);
+        return createResponse('success', 'แก้ไขรายการบัญชีสำเร็จ');
+
+      // --- Member Management ---
       case 'addMember':
         var m = requestData.member;
         memberSheet.appendRow([
@@ -60,11 +83,11 @@ function doPost(e) {
 
       case 'updateMember':
         updateMemberData(memberSheet, requestData.id, requestData.data);
-        return createResponse('success', 'อัปเดตข้อมูลสำเร็จ');
+        return createResponse('success', 'อัปเดตข้อมูลสมาชิกสำเร็จ');
 
       case 'deleteMember':
         deleteRowById(memberSheet, requestData.id);
-        return createResponse('success', 'ลบข้อมูลสำเร็จ');
+        return createResponse('success', 'ลบข้อมูลสมาชิกสำเร็จ');
 
       default:
         return createResponse('error', 'Unknown action: ' + action);
@@ -73,6 +96,8 @@ function doPost(e) {
     return createResponse('error', err.toString());
   }
 }
+
+// --- Helper Functions ---
 
 function createResponse(status, data) {
   var output = { status: status };
@@ -86,7 +111,8 @@ function createResponse(status, data) {
 function getMembersData(memberSheet, transSheet) {
   var mRows = memberSheet.getDataRange().getValues();
   var tRows = transSheet.getDataRange().getValues();
-  
+  if (mRows.length <= 1) return [];
+
   var transactionsByMember = {};
   for (var j = 1; j < tRows.length; j++) {
     var mid = tRows[j][1];
@@ -96,9 +122,7 @@ function getMembersData(memberSheet, transSheet) {
       housing: tRows[j][4], land: tRows[j][5], shares: tRows[j][6], savings: tRows[j][7],
       welfare: tRows[j][8], insurance: tRows[j][9], donation: tRows[j][10], generalLoan: tRows[j][11],
       others: tRows[j][12], othersNote: tRows[j][13], totalAmount: tRows[j][14], recordedBy: tRows[j][15],
-      paymentMethod: tRows[j][16] || 'cash',
-      qtyHousing: tRows[j][17], qtyLand: tRows[j][18], qtyShares: tRows[j][19], qtySavings: tRows[j][20],
-      qtyWelfare: tRows[j][21], qtyInsurance: tRows[j][22], qtyDonation: tRows[j][23], qtyGeneralLoan: tRows[j][24]
+      paymentMethod: tRows[j][16] || 'cash'
     });
   }
 
@@ -116,6 +140,21 @@ function getMembersData(memberSheet, transSheet) {
     });
   }
   return members;
+}
+
+function getLedgerData(sheet) {
+  var rows = sheet.getDataRange().getValues();
+  if (rows.length <= 1) return [];
+  var ledger = [];
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i];
+    ledger.push({
+      id: r[0], date: r[1], type: r[2], category: r[3],
+      description: r[4], amount: Number(r[5]) || 0, paymentMethod: r[6],
+      recordedBy: r[7], note: r[8], timestamp: r[9]
+    });
+  }
+  return ledger;
 }
 
 function updateMemberBalancesFromTx(sheet, tx) {
@@ -153,6 +192,23 @@ function updateMemberData(sheet, id, updateData) {
       if (updateData.generalLoanBalance !== undefined) sheet.getRange(row, 13).setValue(updateData.generalLoanBalance);
       if (updateData.monthlyInstallment !== undefined) sheet.getRange(row, 14).setValue(updateData.monthlyInstallment);
       if (updateData.missedInstallments !== undefined) sheet.getRange(row, 15).setValue(updateData.missedInstallments);
+      break;
+    }
+  }
+}
+
+function updateRowById(sheet, id, updateData) {
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0] === id) {
+      var row = i + 1;
+      for (var key in updateData) {
+        var colIndex = headers.indexOf(key);
+        if (colIndex !== -1) {
+          sheet.getRange(row, colIndex + 1).setValue(updateData[key]);
+        }
+      }
       break;
     }
   }

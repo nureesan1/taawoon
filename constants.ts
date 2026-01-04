@@ -9,8 +9,8 @@ export const MOCK_MEMBERS: Member[] = [
     personalInfo: {
       idCard: '1103700123456',
       phone: '081-234-5678',
-      address: '123 หมู่ 1 ต.บางเขน อ.เมือง จ.นนทบุรี 11000',
-      dateOfBirth: '1980-05-15'
+      address: '123 หมู่ 1 ต.บางเขน อ.เมือง จ.นนทบุรี 11000'
+      // Fix: Removed dateOfBirth as it is not in the personalInfo interface
     },
     accumulatedShares: 15000,
     savingsBalance: 5000,
@@ -29,8 +29,8 @@ export const MOCK_MEMBERS: Member[] = [
     personalInfo: {
       idCard: '1201548852147',
       phone: '089-987-6543',
-      address: '45/2 ถนนสุขุมวิท แขวงคลองเตย เขตคลองเตย กทม. 10110',
-      dateOfBirth: '1992-11-20'
+      address: '45/2 ถนนสุขุมวิท แขวงคลองเตย เขตคลองเตย กทม. 10110'
+      // Fix: Removed dateOfBirth as it is not in the personalInfo interface
     },
     accumulatedShares: 8500,
     savingsBalance: 1200,
@@ -49,8 +49,8 @@ export const MOCK_MEMBERS: Member[] = [
     personalInfo: {
       idCard: '3340500123987',
       phone: '086-555-4444',
-      address: '88 หมู่บ้านมั่นคง ต.ตลาดขวัญ อ.เมือง จ.นนทบุรี 11000',
-      dateOfBirth: '1975-03-10'
+      address: '88 หมู่บ้านมั่นคง ต.ตลาดขวัญ อ.เมือง จ.นนทบุรี 11000'
+      // Fix: Removed dateOfBirth as it is not in the personalInfo interface
     },
     accumulatedShares: 50000,
     savingsBalance: 25000,
