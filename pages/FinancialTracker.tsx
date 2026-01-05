@@ -4,7 +4,7 @@ import { useStore } from '../context/StoreContext';
 import { 
   Plus, Search, TrendingUp, TrendingDown, Wallet, Banknote, 
   Landmark, Filter, Calendar, Trash2, Edit2, CheckCircle2,
-  ChevronDown, ChevronUp, FileText, Info, Sparkles
+  ChevronDown, ChevronUp, FileText, Info
 } from 'lucide-react';
 import { LedgerTransaction, TransactionType, PaymentMethod } from '../types';
 
@@ -20,13 +20,11 @@ const CATEGORIES = {
 export const FinancialTracker: React.FC = () => {
   const { ledger, addLedgerItem, deleteLedgerItem, currentUser } = useStore();
   
-  // States
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | TransactionType>('all');
   const [dateRange, setDateRange] = useState({ start: '', end: new Date().toISOString().split('T')[0] });
-
-  // Form State
+  
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     type: 'income' as TransactionType,
@@ -37,7 +35,6 @@ export const FinancialTracker: React.FC = () => {
     note: ''
   });
 
-  // Calculations
   const filteredLedger = useMemo(() => {
     return ledger.filter(item => {
       const matchesSearch = item.description.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -100,20 +97,14 @@ export const FinancialTracker: React.FC = () => {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       
-      {/* Helper Persona Header */}
-      <div className="bg-gradient-to-r from-teal-600 to-emerald-700 p-6 rounded-[2rem] text-white shadow-lg flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
-            <Sparkles className="w-8 h-8 text-yellow-300" />
-          </div>
-          <div>
-            <h2 className="text-xl font-black tracking-tight">ผู้ช่วยอัจฉริยะด้านการเงิน</h2>
-            <p className="text-teal-100 text-xs font-bold opacity-80 uppercase tracking-widest mt-0.5">Financial Smart Assistant</p>
-          </div>
+      {/* Page Title */}
+      <div className="flex items-center gap-4 mb-4">
+        <div className="p-3 bg-[#064e3b] rounded-2xl text-white shadow-lg">
+          <BookOpenIcon className="w-8 h-8" />
         </div>
-        <div className="hidden md:block text-right">
-          <p className="text-[10px] font-black opacity-60 uppercase tracking-widest">ยินดีต้อนรับ</p>
-          <p className="font-bold">{currentUser?.name}</p>
+        <div>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">บันทึกบัญชีรายรับ-รายจ่าย</h2>
+          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-0.5">Cooperative General Ledger</p>
         </div>
       </div>
 
@@ -310,6 +301,13 @@ export const FinancialTracker: React.FC = () => {
     </div>
   );
 };
+
+const BookOpenIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+  </svg>
+);
 
 const SummaryCard: React.FC<{ title: string; value: string; subText: string; icon: React.ReactNode; colorClass: string }> = ({ title, value, subText, icon, colorClass }) => (
   <div className={`p-6 rounded-[2rem] border shadow-sm ${colorClass} transition-transform hover:-translate-y-1`}>

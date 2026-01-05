@@ -1,9 +1,8 @@
-
 import React from 'react';
 import { useStore } from '../context/StoreContext';
 import { StatCard } from '../components/StatCard';
-import { Wallet, Landmark, TrendingDown, PiggyBank, History, FileText, Home, MapPin, Coins, CalendarCheck, AlertCircle, Info, ArrowUpRight, Clock } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
+import { Wallet, Landmark, TrendingDown, PiggyBank, History, FileText, Home, MapPin, Coins, CalendarCheck, AlertCircle, Info, Clock } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 
 export const MemberDashboard: React.FC = () => {
   const { currentUser, getMember } = useStore();
@@ -161,7 +160,6 @@ export const MemberDashboard: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {member.transactions.slice(0, 5).map(tx => {
-                                // Find what categories were paid in this transaction
                                 const details = [];
                                 if (Number(tx.housing) > 0) details.push(`ค่าบ้าน ${formatTHB(tx.housing)}`);
                                 if (Number(tx.land) > 0) details.push(`ค่าที่ดิน ${formatTHB(tx.land)}`);

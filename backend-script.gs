@@ -1,49 +1,70 @@
 
 /**
- * Google Apps Script for Taawoon Cooperative System (Secure CORS Version)
+ * Google Apps Script for Taawoon Cooperative System (CORS-Proof Version)
  * ---------------------------------------------------------------------
+ * เชื่อมต่อกับ Sheet ID: 1YJQaoc3vP_5wrLscsbB-OwX_35RtjawxxcbCtcno9_o
  */
+
+var TARGET_SHEET_ID = "1YJQaoc3vP_5wrLscsbB-OwX_35RtjawxxcbCtcno9_o";
+
+function getSS() {
+  try {
+    // พยายามดึง Active Spreadsheet ถ้าเป็น Bound Script
+    return SpreadsheetApp.getActiveSpreadsheet();
+  } catch (e) {
+    // ถ้าไม่ใช่ ให้ดึงจาก ID
+    return SpreadsheetApp.openById(TARGET_SHEET_ID);
+  }
+}
 
 function doOptions(e) {
   return ContentService.createTextOutput("")
     .setMimeType(ContentService.MimeType.TEXT)
     .setHeader("Access-Control-Allow-Origin", "*")
     .setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-    .setHeader("Access-Control-Allow-Headers", "Content-Type");
+    .setHeader("Access-Control-Allow-Headers", "Content-Type, Accept, X-Requested-With");
 }
 
 function doGet(e) {
-  var response = { status: 'success', message: 'API is online.' };
-  return ContentService.createTextOutput(JSON.stringify(response))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeader("Access-Control-Allow-Origin", "*");
+  var html = "<html><body style='font-family:sans-serif; text-align:center; padding-top:50px;'>" +
+             "<h1 style='color:#064e3b'>Cooperative API is ONLINE</h1>" +
+             "<p>Sheet connected: " + TARGET_SHEET_ID + "</p>" +
+             "<p style='color:gray; font-size:12px;'>Timestamp: " + new Date().toLocaleString() + "</p>" +
+             "</body></html>";
+  return HtmlService.createHtmlOutput(html).setTitle("Taawoon API Status");
 }
 
 function doPost(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = getSS();
   var memberSheet = getOrInsertSheet(ss, 'Members');
   var transSheet = getOrInsertSheet(ss, 'Transactions');
   var ledgerSheet = getOrInsertSheet(ss, 'Ledger');
   
   initializeHeaders(memberSheet, transSheet, ledgerSheet);
 
-  var requestData;
-  try {
-    requestData = JSON.parse(e.postData.contents);
-  } catch (err) {
-    return createResponse('error', 'Invalid JSON input');
-  }
+  var action, requestData;
 
-  var action = requestData.action;
+  try {
+    if (e.postData.type === 'application/x-www-form-urlencoded') {
+      action = e.parameter.action;
+      requestData = e.parameter.data ? JSON.parse(e.parameter.data) : {};
+    } else {
+      var contents = JSON.parse(e.postData.contents);
+      action = contents.action;
+      requestData = contents;
+    }
+  } catch (err) {
+    return createResponse('error', 'ไม่สามารถอ่านข้อมูลที่ส่งมาได้: ' + err.toString());
+  }
 
   try {
     switch (action) {
       case 'ping':
-        return createResponse('success', { message: 'pong' });
+        return createResponse('success', { message: 'pong', timestamp: new Date().toISOString() });
 
       case 'initDatabase':
         initializeHeaders(memberSheet, transSheet, ledgerSheet, true);
-        return createResponse('success', 'Database Initialized Successfully');
+        return createResponse('success', 'เตรียมโครงสร้างฐานข้อมูลสำเร็จ');
 
       case 'getData':
         return createResponse('success', { 
@@ -64,12 +85,12 @@ function doPost(e) {
         var memberName = getMemberNameById(memberSheet, tx.memberId);
         ledgerSheet.appendRow([
           'L' + tx.timestamp, tx.date, 'income', 'รายได้', 
-          'รับชำระเงินจากสมาชิก: ' + memberName, 
+          'รับชำระจาก: ' + memberName, 
           tx.totalAmount, tx.paymentMethod, tx.recordedBy, 
-          'บันทึกจากระบบรับชำระสมาชิก', tx.timestamp
+          'บันทึกผ่านระบบรับชำระ', tx.timestamp
         ]);
         updateMemberBalancesFromTx(memberSheet, tx);
-        return createResponse('success', 'Transaction Recorded');
+        return createResponse('success', 'บันทึกการชำระเงินสำเร็จ');
 
       case 'addMember':
         var m = requestData.member;
@@ -79,15 +100,15 @@ function doPost(e) {
           m.savingsBalance || 0, m.housingLoanBalance || 0, m.landLoanBalance || 0, 
           m.generalLoanBalance || 0, m.monthlyInstallment || 0, m.missedInstallments || 0
         ]);
-        return createResponse('success', 'Member Added');
+        return createResponse('success', 'เพิ่มสมาชิกใหม่เรียบร้อย');
 
       case 'updateMember':
         updateMemberData(memberSheet, requestData.id, requestData.data);
-        return createResponse('success', 'Member Updated');
+        return createResponse('success', 'อัปเดตข้อมูลสำเร็จ');
 
       case 'deleteMember':
         deleteRowById(memberSheet, requestData.id);
-        return createResponse('success', 'Member Deleted');
+        return createResponse('success', 'ลบสมาชิกเรียบร้อย');
 
       case 'addLedgerItem':
         var item = requestData.item;
@@ -96,17 +117,17 @@ function doPost(e) {
           item.description, item.amount, item.paymentMethod, 
           item.recordedBy, item.note || '', item.timestamp
         ]);
-        return createResponse('success', 'Ledger Item Added');
+        return createResponse('success', 'บันทึกรายการบัญชีสำเร็จ');
 
       case 'deleteLedgerItem':
         deleteRowById(ledgerSheet, requestData.id);
-        return createResponse('success', 'Ledger Item Deleted');
+        return createResponse('success', 'ลบรายการบัญชีเรียบร้อย');
 
       default:
-        return createResponse('error', 'Unknown Action: ' + action);
+        return createResponse('error', 'ไม่พบคำสั่ง: ' + action);
     }
   } catch (err) {
-    return createResponse('error', 'Server Error: ' + err.toString());
+    return createResponse('error', 'ข้อผิดพลาดในระบบ: ' + err.toString());
   }
 }
 
@@ -141,7 +162,7 @@ function createResponse(status, data) {
   }
   
   return ContentService.createTextOutput(JSON.stringify(output))
-    .setMimeType(ContentService.MimeType.JSON)
+    .setMimeType(ContentService.MimeType.TEXT)
     .setHeader("Access-Control-Allow-Origin", "*");
 }
 
@@ -150,7 +171,7 @@ function getMemberNameById(sheet, id) {
   for (var i = 1; i < data.length; i++) {
     if (data[i][0] == id) return data[i][1];
   }
-  return "Unknown";
+  return "ไม่ทราบชื่อ";
 }
 
 function getMembersData(memberSheet, transSheet) {
