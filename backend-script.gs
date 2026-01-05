@@ -1,19 +1,20 @@
 
 /**
- * Google Apps Script for Taawoon Cooperative System 
- * -------------------------------------------------
+ * Google Apps Script for Taawoon Cooperative System (Production Version)
+ * ---------------------------------------------------------------------
  */
 
 function doOptions(e) {
-  return ContentService.createTextOutput("")
-    .setMimeType(ContentService.MimeType.TEXT)
-    .setHeader("Access-Control-Allow-Origin", "*")
-    .setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-    .setHeader("Access-Control-Allow-Headers", "Content-Type");
+  var output = ContentService.createTextOutput("");
+  output.setMimeType(ContentService.MimeType.TEXT);
+  output.setHeader("Access-Control-Allow-Origin", "*");
+  output.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+  output.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  return output;
 }
 
 function doGet(e) {
-  return createResponse('success', 'API is active and ready for POST requests.');
+  return createResponse('success', 'Taawoon API is online.');
 }
 
 function doPost(e) {
@@ -22,15 +23,13 @@ function doPost(e) {
   var transSheet = getOrInsertSheet(ss, 'Transactions');
   var ledgerSheet = getOrInsertSheet(ss, 'Ledger');
   
-  // ตรวจสอบและสร้างหัวตารางหากยังไม่มี
   initializeHeaders(memberSheet, transSheet, ledgerSheet);
 
   var requestData;
   try {
     requestData = JSON.parse(e.postData.contents);
-    console.log('Action: ' + requestData.action);
   } catch (err) {
-    return createResponse('error', 'Invalid JSON input: ' + err.toString());
+    return createResponse('error', 'Invalid JSON input');
   }
 
   var action = requestData.action;
@@ -39,7 +38,7 @@ function doPost(e) {
     switch (action) {
       case 'initDatabase':
         initializeHeaders(memberSheet, transSheet, ledgerSheet, true);
-        return createResponse('success', 'Database initialized with headers');
+        return createResponse('success', 'Database Initialized');
 
       case 'getData':
         return createResponse('success', { 
@@ -61,13 +60,13 @@ function doPost(e) {
         var memberName = getMemberNameById(memberSheet, tx.memberId);
         ledgerSheet.appendRow([
           'L' + tx.timestamp, tx.date, 'income', 'รายได้', 
-          'รับชำระเงินจากสมาชิก: ' + memberName + (tx.paymentMethod === 'transfer' ? ' (' + (tx.bankName || 'โอน') + ')' : ''), 
+          'รับชำระเงินจากสมาชิก: ' + memberName, 
           tx.totalAmount, tx.paymentMethod, tx.recordedBy, 
-          'บันทึกอัตโนมัติจากระบบรับชำระเงินสมาชิก', tx.timestamp
+          'บันทึกจากระบบรับชำระสมาชิก', tx.timestamp
         ]);
 
         updateMemberBalancesFromTx(memberSheet, tx);
-        return createResponse('success', 'Transaction recorded successfully');
+        return createResponse('success', 'Transaction Recorded');
 
       case 'addMember':
         var m = requestData.member;
@@ -77,15 +76,15 @@ function doPost(e) {
           m.savingsBalance || 0, m.housingLoanBalance || 0, m.landLoanBalance || 0, 
           m.generalLoanBalance || 0, m.monthlyInstallment || 0, m.missedInstallments || 0
         ]);
-        return createResponse('success', 'Member added');
+        return createResponse('success', 'Member Added');
 
       case 'updateMember':
         updateMemberData(memberSheet, requestData.id, requestData.data);
-        return createResponse('success', 'Member updated');
+        return createResponse('success', 'Member Updated');
 
       case 'deleteMember':
         deleteRowById(memberSheet, requestData.id);
-        return createResponse('success', 'Member deleted');
+        return createResponse('success', 'Member Deleted');
 
       case 'addLedgerItem':
         var item = requestData.item;
@@ -94,22 +93,19 @@ function doPost(e) {
           item.description, item.amount, item.paymentMethod, 
           item.recordedBy, item.note || '', item.timestamp
         ]);
-        return createResponse('success', 'Ledger item added');
+        return createResponse('success', 'Ledger Item Added');
 
       case 'deleteLedgerItem':
         deleteRowById(ledgerSheet, requestData.id);
-        return createResponse('success', 'Ledger item deleted');
+        return createResponse('success', 'Ledger Item Deleted');
 
       default:
-        return createResponse('error', 'Unknown action: ' + action);
+        return createResponse('error', 'Unknown Action');
     }
   } catch (err) {
-    console.error(err);
     return createResponse('error', err.toString());
   }
 }
-
-// --- Helpers ---
 
 function getOrInsertSheet(ss, name) {
   var sheet = ss.getSheetByName(name);
@@ -141,9 +137,10 @@ function createResponse(status, data) {
     output.message = data;
   }
   
-  return ContentService.createTextOutput(JSON.stringify(output))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeader("Access-Control-Allow-Origin", "*");
+  var textOutput = ContentService.createTextOutput(JSON.stringify(output));
+  textOutput.setMimeType(ContentService.MimeType.JSON);
+  textOutput.setHeader("Access-Control-Allow-Origin", "*");
+  return textOutput;
 }
 
 function getMemberNameById(sheet, id) {
@@ -162,6 +159,7 @@ function getMembersData(memberSheet, transSheet) {
   var transactionsByMember = {};
   for (var j = 1; j < tRows.length; j++) {
     var mid = tRows[j][1];
+    if (!mid) continue; // ข้ามแถวว่าง
     if (!transactionsByMember[mid]) transactionsByMember[mid] = [];
     transactionsByMember[mid].push({
       id: tRows[j][0], memberId: tRows[j][1], date: tRows[j][2], timestamp: tRows[j][3],
@@ -176,6 +174,7 @@ function getMembersData(memberSheet, transSheet) {
   var members = [];
   for (var i = 1; i < mRows.length; i++) {
     var m = mRows[i];
+    if (!m[0]) continue; // ข้ามแถวที่ไม่มี ID
     members.push({
       id: String(m[0]), name: m[1], memberCode: m[2],
       personalInfo: { idCard: String(m[3]), phone: m[4], address: m[5] },
@@ -196,6 +195,7 @@ function getLedgerData(sheet) {
   var ledger = [];
   for (var i = 1; i < rows.length; i++) {
     var r = rows[i];
+    if (!r[0]) continue;
     ledger.push({
       id: r[0], date: r[1], type: r[2], category: r[3],
       description: r[4], amount: Number(r[5]) || 0, paymentMethod: r[6],

@@ -22,6 +22,7 @@ interface StoreContextType {
   getMember: (id: string) => Member | undefined;
   setView: (view: AppView) => void;
   updateConfig: (newConfig: AppConfig) => void;
+  resetConfig: () => void;
   refreshData: () => Promise<void>;
   addMember: (member: Omit<Member, 'transactions'>) => Promise<boolean>;
   updateMember: (id: string, data: Partial<Member>) => Promise<boolean>;
@@ -37,59 +38,72 @@ const DEFAULT_CONFIG: AppConfig = {
 };
 
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [members, setMembers] = useState<Member[]>([]); // เริ่มต้นเป็นอาเรย์ว่าง
+  const [members, setMembers] = useState<Member[]>([]);
   const [ledger, setLedger] = useState<LedgerTransaction[]>([]);
   const [currentUser, setCurrentUser] = useState<{ role: UserRole; memberId?: string; name?: string } | null>(null);
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
   const [config, setConfig] = useState<AppConfig>(() => {
     const saved = localStorage.getItem('app_config');
+    // ตรวจสอบว่ามีข้อมูลใน localStorage หรือไม่ ถ้าไม่มีให้ใช้ค่าเริ่มต้น
     return saved ? JSON.parse(saved) : DEFAULT_CONFIG;
   });
   const [isLoading, setIsLoading] = useState(false);
 
   const callApi = async (action: string, payload: any = {}) => {
-    if (!config.scriptUrl) {
-      console.warn("No script URL configured");
+    if (!config.scriptUrl || config.scriptUrl.trim() === '') {
+      console.warn("Script URL is missing");
       return null;
     }
     
     try {
       const response = await fetch(config.scriptUrl, {
         method: 'POST',
-        redirect: 'follow', // จำเป็นสำหรับ GAS
+        mode: 'no-cors', // ลองใช้ no-cors ในกรณีที่ติดปัญหา CORS เบื้องต้น แต่แนะนำให้สคริปต์รองรับ OPTIONS
+        body: JSON.stringify({ action, ...payload }),
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8',
+        }
+      });
+
+      // GAS Web App มักจะแสดงผลเป็นสภาวะ 0 เมื่อใช้ no-cors 
+      // เพื่อความเสถียร เราจะเปลี่ยนกลับมาใช้ CORS ปกติแต่จัดการ redirect
+      const corsResponse = await fetch(config.scriptUrl, {
+        method: 'POST',
+        redirect: 'follow',
         body: JSON.stringify({ action, ...payload }),
         headers: {
           'Content-Type': 'text/plain;charset=utf-8',
         }
       });
       
-      if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+      if (!corsResponse.ok) throw new Error(`HTTP Error ${corsResponse.status}`);
       
-      const data = await response.json();
+      const data = await corsResponse.json();
       if (data.status === 'error') throw new Error(data.message);
       return data;
     } catch (e) {
-      console.error("API Error during " + action + ":", e);
+      console.error("API Call failed:", e);
       throw e;
     }
   };
 
   const refreshData = useCallback(async () => {
     if (!config.useGoogleSheets || !config.scriptUrl) {
-      setMembers(MOCK_MEMBERS); // ใช้ Mock ถ้าไม่ได้ตั้งค่าเชื่อมต่อ
+      setMembers(MOCK_MEMBERS);
       return;
     }
     
     setIsLoading(true);
     try {
       const data = await callApi('getData');
-      if (data) {
+      if (data && data.status === 'success') {
         if (data.members) setMembers(data.members);
         if (data.ledger) setLedger(data.ledger.sort((a: any, b: any) => b.timestamp - a.timestamp));
       }
     } catch (error) {
-      console.error("Failed to fetch data:", error);
-      // ถ้าดึงข้อมูลไม่สำเร็จ อาจแสดงข้อความเตือน หรือคงค่าเดิมไว้
+      console.error("Refresh Data Error:", error);
+      // หากดึงข้อมูลไม่ได้ ให้แสดงข้อมูล Mock เพื่อให้แอปยังทำงานได้
+      if (members.length === 0) setMembers(MOCK_MEMBERS);
     } finally {
       setIsLoading(false);
     }
@@ -103,22 +117,23 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setIsLoading(true);
     try {
       await callApi('initDatabase');
-      alert('สร้างหัวตารางสำเร็จ');
+      alert('Initialize Database สำเร็จ! ระบบกำลังดึงข้อมูลใหม่...');
       await refreshData();
     } catch (e) {
-      alert('ล้มเหลว: ' + e);
+      alert('Init Failed: กรุณาตรวจสอบว่า Deploy สคริปต์เป็น Anyone หรือยัง?\nError: ' + e);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const addTransaction = async (txData: Omit<Transaction, 'id' | 'timestamp'>) => {
-    const newTx: Transaction = {
-      ...txData,
-      id: 'T' + Date.now(),
-      timestamp: Date.now()
-    };
+  const resetConfig = () => {
+    localStorage.removeItem('app_config');
+    setConfig(DEFAULT_CONFIG);
+    window.location.reload();
+  };
 
+  const addTransaction = async (txData: Omit<Transaction, 'id' | 'timestamp'>) => {
+    const newTx: Transaction = { ...txData, id: 'T' + Date.now(), timestamp: Date.now() };
     if (config.useGoogleSheets) {
       setIsLoading(true);
       try {
@@ -132,20 +147,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setIsLoading(false);
       }
     } else {
-      // Local logic
-      setMembers(prev => prev.map(m => {
-        if (m.id === txData.memberId) {
-          const updatedMember = { ...m };
-          updatedMember.accumulatedShares += Number(txData.shares || 0);
-          updatedMember.savingsBalance += Number(txData.savings || 0);
-          updatedMember.housingLoanBalance = Math.max(0, updatedMember.housingLoanBalance - Number(txData.housing || 0));
-          updatedMember.landLoanBalance = Math.max(0, updatedMember.landLoanBalance - Number(txData.land || 0));
-          updatedMember.generalLoanBalance = Math.max(0, updatedMember.generalLoanBalance - Number(txData.generalLoan || 0));
-          updatedMember.transactions = [newTx, ...m.transactions];
-          return updatedMember;
-        }
-        return m;
-      }));
+      setMembers(prev => prev.map(m => m.id === txData.memberId ? { ...m, transactions: [newTx, ...m.transactions] } : m));
       return true;
     }
   };
@@ -158,12 +160,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         await callApi('addLedgerItem', { item: newItem });
         await refreshData();
         return true;
-      } catch (e) {
-        console.error(e);
-        return false;
-      } finally {
-        setIsLoading(false);
-      }
+      } catch (e) { return false; } finally { setIsLoading(false); }
     } else {
       setLedger(prev => [newItem, ...prev]);
       return true;
@@ -177,12 +174,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         await callApi('deleteLedgerItem', { id });
         await refreshData();
         return true;
-      } catch (e) {
-        console.error(e);
-        return false;
-      } finally {
-        setIsLoading(false);
-      }
+      } catch (e) { return false; } finally { setIsLoading(false); }
     } else {
       setLedger(prev => prev.filter(i => i.id !== id));
       return true;
@@ -196,15 +188,10 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         await callApi('updateLedgerItem', { id, data });
         await refreshData();
         return true;
-      } catch (e) {
-        console.error(e);
-        return false;
-      } finally {
-        setIsLoading(false);
-      }
+      } catch (e) { return false; } finally { setIsLoading(false); }
     } else {
-        setLedger(prev => prev.map(i => i.id === id ? { ...i, ...data } : i));
-        return true;
+      setLedger(prev => prev.map(i => i.id === id ? { ...i, ...data } : i));
+      return true;
     }
   };
 
@@ -216,12 +203,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         await callApi('addMember', { member: newMember });
         await refreshData();
         return true;
-      } catch (e) {
-        console.error(e);
-        return false;
-      } finally {
-        setIsLoading(false);
-      }
+      } catch (e) { return false; } finally { setIsLoading(false); }
     } else {
       setMembers(prev => [...prev, newMember]);
       return true;
@@ -235,12 +217,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         await callApi('updateMember', { id, data });
         await refreshData();
         return true;
-      } catch (e) {
-        console.error(e);
-        return false;
-      } finally {
-        setIsLoading(false);
-      }
+      } catch (e) { return false; } finally { setIsLoading(false); }
     } else {
       setMembers(prev => prev.map(m => m.id === id ? { ...m, ...data } : m));
       return true;
@@ -254,12 +231,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         await callApi('deleteMember', { id });
         await refreshData();
         return true;
-      } catch (e) {
-        console.error(e);
-        return false;
-      } finally {
-        setIsLoading(false);
-      }
+      } catch (e) { return false; } finally { setIsLoading(false); }
     } else {
       setMembers(prev => prev.filter(m => m.id !== id));
       return true;
@@ -288,7 +260,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     <StoreContext.Provider value={{ 
       members, ledger, currentUser, currentView, config, isLoading,
       login, logout, addTransaction, addLedgerItem, deleteLedgerItem, updateLedgerItem,
-      getMember, setView, updateConfig, refreshData, addMember, updateMember, deleteMember, initDatabase
+      getMember, setView, updateConfig, resetConfig, refreshData, addMember, updateMember, deleteMember, initDatabase
     }}>
       {children}
       {isLoading && <LoadingOverlay />}

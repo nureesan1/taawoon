@@ -1,10 +1,10 @@
 
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
-import { Save, Database, ShieldAlert, CheckCircle2, RefreshCw, Wand2 } from 'lucide-react';
+import { Save, Database, ShieldAlert, CheckCircle2, RefreshCw, Wand2, RotateCcw } from 'lucide-react';
 
 export const Settings: React.FC = () => {
-  const { config, updateConfig, refreshData, initDatabase } = useStore();
+  const { config, updateConfig, resetConfig, refreshData, initDatabase } = useStore();
   const [formData, setFormData] = useState(config);
   const [isSaved, setIsSaved] = useState(false);
 
@@ -28,9 +28,17 @@ export const Settings: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-center gap-2">
-          <Database className="w-5 h-5 text-slate-600" />
-          <h2 className="font-semibold text-slate-700">การเชื่อมต่อฐานข้อมูล (Database Connection)</h2>
+        <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Database className="w-5 h-5 text-slate-600" />
+            <h2 className="font-semibold text-slate-700">การเชื่อมต่อฐานข้อมูล (Database Connection)</h2>
+          </div>
+          <button 
+            onClick={() => { if(confirm('ต้องการล้างค่าการเชื่อมต่อเป็นค่าเริ่มต้นหรือไม่?')) resetConfig(); }}
+            className="text-xs text-red-500 font-bold flex items-center gap-1 hover:underline"
+          >
+            <RotateCcw className="w-3 h-3" /> ล้างค่าแคช
+          </button>
         </div>
         
         <div className="p-8 space-y-8">
@@ -74,10 +82,11 @@ export const Settings: React.FC = () => {
                 <div className="bg-blue-50 text-blue-800 p-4 rounded-lg text-sm border border-blue-100 flex gap-3">
                     <ShieldAlert className="w-5 h-5 flex-shrink-0" />
                     <div>
-                        <p className="font-bold mb-1">คำแนะนำสำคัญ</p>
+                        <p className="font-bold mb-1">คำแนะนำการแก้ไขปัญหา</p>
                         <ol className="list-decimal pl-4 space-y-1 opacity-90">
-                            <li>ตรวจสอบว่า Deploy สคริปต์เป็น <strong>"Anyone"</strong> แล้ว</li>
-                            <li>หากเป็นไฟล์ Google Sheets ใหม่ ให้กดปุ่ม <strong>"Initialize Database"</strong> ด้านล่างเพื่อสร้างหัวตาราง</li>
+                            <li>ตรวจสอบว่า URL ถูกต้องและลงท้ายด้วย <code>/exec</code></li>
+                            <li>หากแก้โค้ดใน Apps Script ต้อง Deploy เป็น <strong>"New Version"</strong> เสมอ</li>
+                            <li>หากข้อมูลไม่โชว์ ให้กดปุ่ม <strong>"Initialize Database"</strong> ด้านล่าง</li>
                         </ol>
                     </div>
                 </div>
@@ -100,7 +109,7 @@ export const Settings: React.FC = () => {
                     className="flex items-center gap-2 px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                 >
                     <RefreshCw className="w-4 h-4" />
-                    ทดสอบดึงข้อมูล
+                    ดึงข้อมูลใหม่
                 </button>
                 <button 
                     onClick={initDatabase}
