@@ -13,6 +13,7 @@ interface StoreContextType {
   currentView: AppView;
   config: AppConfig;
   isLoading: boolean;
+  connectionStatus: 'connected' | 'disconnected' | 'checking';
   login: (role: UserRole, memberId?: string) => void;
   logout: () => void;
   addTransaction: (transaction: Omit<Transaction, 'id' | 'timestamp'>) => Promise<boolean>;
@@ -28,13 +29,14 @@ interface StoreContextType {
   updateMember: (id: string, data: Partial<Member>) => Promise<boolean>;
   deleteMember: (id: string) => Promise<boolean>;
   initDatabase: () => Promise<void>;
+  testConnection: () => Promise<boolean>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 const DEFAULT_CONFIG: AppConfig = {
   useGoogleSheets: true,
-  scriptUrl: 'https://script.google.com/macros/s/AKfycbysBRuhgJX2wGJf2UlrhnPS_3YS86KDee790d4ZOoNWo9idLHRjFrYSs_U47wOHFeu6dw/exec'
+  scriptUrl: '' // แนะนำให้ผู้ใช้กรอกเองในหน้า Settings
 };
 
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -44,52 +46,60 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
   const [config, setConfig] = useState<AppConfig>(() => {
     const saved = localStorage.getItem('app_config');
-    // ตรวจสอบว่ามีข้อมูลใน localStorage หรือไม่ ถ้าไม่มีให้ใช้ค่าเริ่มต้น
     return saved ? JSON.parse(saved) : DEFAULT_CONFIG;
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
 
   const callApi = async (action: string, payload: any = {}) => {
     if (!config.scriptUrl || config.scriptUrl.trim() === '') {
-      console.warn("Script URL is missing");
-      return null;
+      throw new Error("ยังไม่ได้ระบุ URL ของ Google Apps Script");
     }
     
     try {
+      // ใช้ Content-Type: text/plain เพื่อข้าม CORS Preflight (OPTIONS request)
+      // Google Apps Script JSON.parse() จะสามารถแกะข้อมูลออกมาได้ปกติ
       const response = await fetch(config.scriptUrl, {
         method: 'POST',
-        mode: 'no-cors', // ลองใช้ no-cors ในกรณีที่ติดปัญหา CORS เบื้องต้น แต่แนะนำให้สคริปต์รองรับ OPTIONS
-        body: JSON.stringify({ action, ...payload }),
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8',
-        }
-      });
-
-      // GAS Web App มักจะแสดงผลเป็นสภาวะ 0 เมื่อใช้ no-cors 
-      // เพื่อความเสถียร เราจะเปลี่ยนกลับมาใช้ CORS ปกติแต่จัดการ redirect
-      const corsResponse = await fetch(config.scriptUrl, {
-        method: 'POST',
-        redirect: 'follow',
+        mode: 'cors', // ต้องเป็นโหมด cors
+        redirect: 'follow', // ต้องเป็น follow เพราะ Google จะ redirect ไปยัง UserContent URL
         body: JSON.stringify({ action, ...payload }),
         headers: {
           'Content-Type': 'text/plain;charset=utf-8',
         }
       });
       
-      if (!corsResponse.ok) throw new Error(`HTTP Error ${corsResponse.status}`);
+      // กรณี Failed to fetch ในเบราว์เซอร์ มักจะกระโดดไป catch ทันที
+      if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
       
-      const data = await corsResponse.json();
+      const data = await response.json();
       if (data.status === 'error') throw new Error(data.message);
       return data;
     } catch (e) {
-      console.error("API Call failed:", e);
+      console.error("Fetch API Error:", e);
       throw e;
+    }
+  };
+
+  const testConnection = async () => {
+    setConnectionStatus('checking');
+    try {
+      const data = await callApi('ping');
+      if (data && data.status === 'success') {
+        setConnectionStatus('connected');
+        return true;
+      }
+      throw new Error("Invalid response status");
+    } catch (e) {
+      setConnectionStatus('disconnected');
+      return false;
     }
   };
 
   const refreshData = useCallback(async () => {
     if (!config.useGoogleSheets || !config.scriptUrl) {
       setMembers(MOCK_MEMBERS);
+      setConnectionStatus('disconnected');
       return;
     }
     
@@ -99,10 +109,14 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       if (data && data.status === 'success') {
         if (data.members) setMembers(data.members);
         if (data.ledger) setLedger(data.ledger.sort((a: any, b: any) => b.timestamp - a.timestamp));
+        setConnectionStatus('connected');
+      } else {
+        throw new Error(data?.message || "Data fetch unsuccessful");
       }
     } catch (error) {
       console.error("Refresh Data Error:", error);
-      // หากดึงข้อมูลไม่ได้ ให้แสดงข้อมูล Mock เพื่อให้แอปยังทำงานได้
+      setConnectionStatus('disconnected');
+      // หากดึงไม่ได้เลยและไม่มีข้อมูลเดิม ให้ใช้ Mock ไปก่อน
       if (members.length === 0) setMembers(MOCK_MEMBERS);
     } finally {
       setIsLoading(false);
@@ -117,10 +131,10 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setIsLoading(true);
     try {
       await callApi('initDatabase');
-      alert('Initialize Database สำเร็จ! ระบบกำลังดึงข้อมูลใหม่...');
+      alert('Initialize Database สำเร็จ! กรุณารอระบบดึงข้อมูลใหม่...');
       await refreshData();
     } catch (e) {
-      alert('Init Failed: กรุณาตรวจสอบว่า Deploy สคริปต์เป็น Anyone หรือยัง?\nError: ' + e);
+      alert('ไม่สามารถเชื่อมต่อได้: ' + e + '\n\nคำแนะนำ: ตรวจสอบว่าได้ Deploy เป็น "Anyone" และใช้ URL ล่าสุดแล้วหรือยัง?');
     } finally {
       setIsLoading(false);
     }
@@ -258,9 +272,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   return (
     <StoreContext.Provider value={{ 
-      members, ledger, currentUser, currentView, config, isLoading,
+      members, ledger, currentUser, currentView, config, isLoading, connectionStatus,
       login, logout, addTransaction, addLedgerItem, deleteLedgerItem, updateLedgerItem,
-      getMember, setView, updateConfig, resetConfig, refreshData, addMember, updateMember, deleteMember, initDatabase
+      getMember, setView, updateConfig, resetConfig, refreshData, addMember, updateMember, deleteMember, initDatabase, testConnection
     }}>
       {children}
       {isLoading && <LoadingOverlay />}

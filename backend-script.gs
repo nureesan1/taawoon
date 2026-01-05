@@ -1,20 +1,22 @@
 
 /**
- * Google Apps Script for Taawoon Cooperative System (Production Version)
+ * Google Apps Script for Taawoon Cooperative System (Secure CORS Version)
  * ---------------------------------------------------------------------
  */
 
 function doOptions(e) {
-  var output = ContentService.createTextOutput("");
-  output.setMimeType(ContentService.MimeType.TEXT);
-  output.setHeader("Access-Control-Allow-Origin", "*");
-  output.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
-  output.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  return output;
+  return ContentService.createTextOutput("")
+    .setMimeType(ContentService.MimeType.TEXT)
+    .setHeader("Access-Control-Allow-Origin", "*")
+    .setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+    .setHeader("Access-Control-Allow-Headers", "Content-Type");
 }
 
 function doGet(e) {
-  return createResponse('success', 'Taawoon API is online.');
+  var response = { status: 'success', message: 'API is online.' };
+  return ContentService.createTextOutput(JSON.stringify(response))
+    .setMimeType(ContentService.MimeType.JSON)
+    .setHeader("Access-Control-Allow-Origin", "*");
 }
 
 function doPost(e) {
@@ -36,9 +38,12 @@ function doPost(e) {
 
   try {
     switch (action) {
+      case 'ping':
+        return createResponse('success', { message: 'pong' });
+
       case 'initDatabase':
         initializeHeaders(memberSheet, transSheet, ledgerSheet, true);
-        return createResponse('success', 'Database Initialized');
+        return createResponse('success', 'Database Initialized Successfully');
 
       case 'getData':
         return createResponse('success', { 
@@ -56,7 +61,6 @@ function doPost(e) {
           tx.recordedBy || 'System', tx.paymentMethod || 'cash',
           tx.bankName || '', tx.bankAccount || ''
         ]);
-
         var memberName = getMemberNameById(memberSheet, tx.memberId);
         ledgerSheet.appendRow([
           'L' + tx.timestamp, tx.date, 'income', 'รายได้', 
@@ -64,7 +68,6 @@ function doPost(e) {
           tx.totalAmount, tx.paymentMethod, tx.recordedBy, 
           'บันทึกจากระบบรับชำระสมาชิก', tx.timestamp
         ]);
-
         updateMemberBalancesFromTx(memberSheet, tx);
         return createResponse('success', 'Transaction Recorded');
 
@@ -100,10 +103,10 @@ function doPost(e) {
         return createResponse('success', 'Ledger Item Deleted');
 
       default:
-        return createResponse('error', 'Unknown Action');
+        return createResponse('error', 'Unknown Action: ' + action);
     }
   } catch (err) {
-    return createResponse('error', err.toString());
+    return createResponse('error', 'Server Error: ' + err.toString());
   }
 }
 
@@ -137,10 +140,9 @@ function createResponse(status, data) {
     output.message = data;
   }
   
-  var textOutput = ContentService.createTextOutput(JSON.stringify(output));
-  textOutput.setMimeType(ContentService.MimeType.JSON);
-  textOutput.setHeader("Access-Control-Allow-Origin", "*");
-  return textOutput;
+  return ContentService.createTextOutput(JSON.stringify(output))
+    .setMimeType(ContentService.MimeType.JSON)
+    .setHeader("Access-Control-Allow-Origin", "*");
 }
 
 function getMemberNameById(sheet, id) {
@@ -159,7 +161,7 @@ function getMembersData(memberSheet, transSheet) {
   var transactionsByMember = {};
   for (var j = 1; j < tRows.length; j++) {
     var mid = tRows[j][1];
-    if (!mid) continue; // ข้ามแถวว่าง
+    if (!mid) continue;
     if (!transactionsByMember[mid]) transactionsByMember[mid] = [];
     transactionsByMember[mid].push({
       id: tRows[j][0], memberId: tRows[j][1], date: tRows[j][2], timestamp: tRows[j][3],
@@ -174,7 +176,7 @@ function getMembersData(memberSheet, transSheet) {
   var members = [];
   for (var i = 1; i < mRows.length; i++) {
     var m = mRows[i];
-    if (!m[0]) continue; // ข้ามแถวที่ไม่มี ID
+    if (!m[0]) continue;
     members.push({
       id: String(m[0]), name: m[1], memberCode: m[2],
       personalInfo: { idCard: String(m[3]), phone: m[4], address: m[5] },
