@@ -110,7 +110,7 @@ export const Settings: React.FC = () => {
                         </div>
                         <p className="text-sm text-red-600">กรุณาตรวจสอบขั้นตอนเหล่านี้ใน Google Apps Script:</p>
                         <ol className="list-decimal pl-5 text-xs text-red-600 space-y-1.5 font-medium">
-                            <li>ไปที่ <b>Deploy > Manage Deployments</b></li>
+                            <li>ไปที่ <b>Deploy &gt; Manage Deployments</b></li>
                             <li>กดแก้ไข (รูปดินสอ) และเลือก <b>Version: New Version</b> เสมอ</li>
                             <li>สำคัญมาก: ช่อง <b>Who has access</b> ต้องเป็น <b>Anyone</b></li>
                             <li>คัดลอก URL ใหม่จากหน้า Deployment มาวางที่นี่อีกครั้ง</li>
