@@ -110,7 +110,7 @@ export const MemberDashboard: React.FC = () => {
                         <Pie data={debtData} cx="50%" cy="50%" innerRadius={45} outerRadius={65} paddingAngle={5} dataKey="value">
                         {debtData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                         </Pie>
-                        <RechartsTooltip formatter={(value: number) => formatTHB(value)} />
+                        <RechartsTooltip formatter={(value: any) => formatTHB(Number(value) || 0)} />
                     </PieChart>
                     </ResponsiveContainer>
                 </div>
