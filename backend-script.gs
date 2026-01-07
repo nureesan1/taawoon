@@ -1,134 +1,117 @@
 
 /**
- * Google Apps Script for Taawoon Cooperative System (CORS-Proof Version)
+ * Google Apps Script for Taawoon Cooperative System (Fixed Version)
  * ---------------------------------------------------------------------
- * เชื่อมต่อกับ Sheet ID: 1YJQaoc3vP_5wrLscsbB-OwX_35RtjawxxcbCtcno9_o
+ * Target Sheet ID: 1YJQaoc3vP_5wrLscsbB-OwX_35RtjawxxcbCtcno9_o
  */
 
 var TARGET_SHEET_ID = "1YJQaoc3vP_5wrLscsbB-OwX_35RtjawxxcbCtcno9_o";
 
 function getSS() {
-  try {
-    // พยายามดึง Active Spreadsheet ถ้าเป็น Bound Script
-    return SpreadsheetApp.getActiveSpreadsheet();
-  } catch (e) {
-    // ถ้าไม่ใช่ ให้ดึงจาก ID
-    return SpreadsheetApp.openById(TARGET_SHEET_ID);
-  }
+  return SpreadsheetApp.openById(TARGET_SHEET_ID);
 }
 
-function doOptions(e) {
-  return ContentService.createTextOutput("")
-    .setMimeType(ContentService.MimeType.TEXT)
-    .setHeader("Access-Control-Allow-Origin", "*")
-    .setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-    .setHeader("Access-Control-Allow-Headers", "Content-Type, Accept, X-Requested-With");
-}
+// ระบบ Web App ของ Google จะจัดการ CORS ให้เองโดยอัตโนมัติ 
+// เราไม่สามารถ setHeader ด้วยตนเองได้
 
 function doGet(e) {
-  var html = "<html><body style='font-family:sans-serif; text-align:center; padding-top:50px;'>" +
-             "<h1 style='color:#064e3b'>Cooperative API is ONLINE</h1>" +
-             "<p>Sheet connected: " + TARGET_SHEET_ID + "</p>" +
-             "<p style='color:gray; font-size:12px;'>Timestamp: " + new Date().toLocaleString() + "</p>" +
-             "</body></html>";
+  var status = "ONLINE";
+  try { getSS(); } catch(err) { status = "ERROR: " + err.message; }
+  
+  var html = "<div style='font-family:sans-serif; text-align:center; padding:50px;'>" +
+             "<h1 style='color:#064e3b'>✅ Cooperative API is " + status + "</h1>" +
+             "<p>Target Sheet: <b>" + TARGET_SHEET_ID + "</b></p>" +
+             "<p style='color:green; font-weight:bold;'>สถานะ: พร้อมใช้งาน</p>" +
+             "<hr style='width:200px; margin:20px auto; border:0; border-top:1px solid #eee;'>" +
+             "<p style='color:gray; font-size:12px;'>หากคุณเห็นหน้านี้ แสดงว่าการตั้งค่า 'Anyone' ถูกต้องแล้ว</p>" +
+             "</div>";
   return HtmlService.createHtmlOutput(html).setTitle("Taawoon API Status");
 }
 
 function doPost(e) {
-  var ss = getSS();
-  var memberSheet = getOrInsertSheet(ss, 'Members');
-  var transSheet = getOrInsertSheet(ss, 'Transactions');
-  var ledgerSheet = getOrInsertSheet(ss, 'Ledger');
+  var action, data;
   
-  initializeHeaders(memberSheet, transSheet, ledgerSheet);
-
-  var action, requestData;
-
   try {
-    if (e.postData.type === 'application/x-www-form-urlencoded') {
+    // 1. ลองแกะข้อมูลจาก Parameter (กรณีส่งแบบ x-www-form-urlencoded)
+    if (e.parameter && e.parameter.action) {
       action = e.parameter.action;
-      requestData = e.parameter.data ? JSON.parse(e.parameter.data) : {};
-    } else {
-      var contents = JSON.parse(e.postData.contents);
-      action = contents.action;
-      requestData = contents;
+      data = e.parameter.data ? JSON.parse(e.parameter.data) : {};
+    } 
+    // 2. ลองแกะจาก PostData (กรณีส่งแบบ JSON)
+    else if (e.postData && e.postData.contents) {
+      var json = JSON.parse(e.postData.contents);
+      action = json.action;
+      data = json.data || json;
     }
   } catch (err) {
-    return createResponse('error', 'ไม่สามารถอ่านข้อมูลที่ส่งมาได้: ' + err.toString());
+    return sendResponse({ status: 'error', message: 'แกะข้อมูลล้มเหลว: ' + err.message });
   }
 
+  if (!action) return sendResponse({ status: 'error', message: 'ไม่ได้ระบุ action' });
+
   try {
+    var ss = getSS();
+    var mSheet = getOrInsertSheet(ss, 'Members');
+    var tSheet = getOrInsertSheet(ss, 'Transactions');
+    var lSheet = getOrInsertSheet(ss, 'Ledger');
+    
     switch (action) {
-      case 'ping':
-        return createResponse('success', { message: 'pong', timestamp: new Date().toISOString() });
-
-      case 'initDatabase':
-        initializeHeaders(memberSheet, transSheet, ledgerSheet, true);
-        return createResponse('success', 'เตรียมโครงสร้างฐานข้อมูลสำเร็จ');
-
+      case 'ping': 
+        return sendResponse({ status: 'success', message: 'pong' });
+      
       case 'getData':
-        return createResponse('success', { 
-          members: getMembersData(memberSheet, transSheet),
-          ledger: getLedgerData(ledgerSheet)
+        return sendResponse({ 
+          status: 'success', 
+          members: getMembersData(mSheet, tSheet),
+          ledger: getLedgerData(lSheet)
         });
 
+      case 'initDatabase':
+        initializeHeaders(mSheet, tSheet, lSheet, true);
+        return sendResponse({ status: 'success', message: 'เริ่มต้นฐานข้อมูลสำเร็จ' });
+
       case 'addTransaction':
-        var tx = requestData.transaction;
-        transSheet.appendRow([
+        var tx = data.transaction;
+        tSheet.appendRow([
           tx.id, tx.memberId, tx.date, tx.timestamp, 
           tx.housing || 0, tx.land || 0, tx.shares || 0, tx.savings || 0, 
           tx.welfare || 0, tx.insurance || 0, tx.donation || 0, tx.generalLoan || 0, 
-          tx.others || 0, tx.othersNote || '', tx.totalAmount || 0, 
-          tx.recordedBy || 'System', tx.paymentMethod || 'cash',
-          tx.bankName || '', tx.bankAccount || ''
+          0, '', tx.totalAmount, tx.recordedBy, tx.paymentMethod
         ]);
-        var memberName = getMemberNameById(memberSheet, tx.memberId);
-        ledgerSheet.appendRow([
-          'L' + tx.timestamp, tx.date, 'income', 'รายได้', 
-          'รับชำระจาก: ' + memberName, 
-          tx.totalAmount, tx.paymentMethod, tx.recordedBy, 
-          'บันทึกผ่านระบบรับชำระ', tx.timestamp
-        ]);
-        updateMemberBalancesFromTx(memberSheet, tx);
-        return createResponse('success', 'บันทึกการชำระเงินสำเร็จ');
-
+        updateMemberBalancesFromTx(mSheet, tx);
+        return sendResponse({ status: 'success', message: 'บันทึกสำเร็จ' });
+      
       case 'addMember':
-        var m = requestData.member;
-        memberSheet.appendRow([
+        var m = data.member;
+        mSheet.appendRow([
           m.id, m.name, m.memberCode, m.personalInfo.idCard, m.personalInfo.phone, 
-          m.personalInfo.address, m.joinedDate, m.memberType, m.accumulatedShares || 0, 
-          m.savingsBalance || 0, m.housingLoanBalance || 0, m.landLoanBalance || 0, 
-          m.generalLoanBalance || 0, m.monthlyInstallment || 0, m.missedInstallments || 0
+          m.personalInfo.address, m.joinedDate, m.memberType, m.accumulatedShares, 
+          m.savingsBalance, m.housingLoanBalance, m.landLoanBalance, m.generalLoanBalance,
+          m.monthlyInstallment, m.missedInstallments
         ]);
-        return createResponse('success', 'เพิ่มสมาชิกใหม่เรียบร้อย');
-
-      case 'updateMember':
-        updateMemberData(memberSheet, requestData.id, requestData.data);
-        return createResponse('success', 'อัปเดตข้อมูลสำเร็จ');
+        return sendResponse({ status: 'success', message: 'เพิ่มสมาชิกสำเร็จ' });
 
       case 'deleteMember':
-        deleteRowById(memberSheet, requestData.id);
-        return createResponse('success', 'ลบสมาชิกเรียบร้อย');
+        deleteRowById(mSheet, data.id);
+        return sendResponse({ status: 'success', message: 'ลบสมาชิกสำเร็จ' });
 
-      case 'addLedgerItem':
-        var item = requestData.item;
-        ledgerSheet.appendRow([
-          item.id, item.date, item.type, item.category, 
-          item.description, item.amount, item.paymentMethod, 
-          item.recordedBy, item.note || '', item.timestamp
-        ]);
-        return createResponse('success', 'บันทึกรายการบัญชีสำเร็จ');
-
-      case 'deleteLedgerItem':
-        deleteRowById(ledgerSheet, requestData.id);
-        return createResponse('success', 'ลบรายการบัญชีเรียบร้อย');
+      case 'updateMember':
+        updateMemberData(mSheet, data.id, data.data);
+        return sendResponse({ status: 'success', message: 'อัปเดตข้อมูลสำเร็จ' });
 
       default:
-        return createResponse('error', 'ไม่พบคำสั่ง: ' + action);
+        return sendResponse({ status: 'error', message: 'ไม่พบ action นี้: ' + action });
     }
   } catch (err) {
-    return createResponse('error', 'ข้อผิดพลาดในระบบ: ' + err.toString());
+    return sendResponse({ status: 'error', message: 'ข้อผิดพลาดการทำงาน: ' + err.toString() });
   }
+}
+
+// ฟังก์ชันส่งคำตอบกลับ (Fixed: ลบ setHeader ออก)
+function sendResponse(obj) {
+  var jsonString = JSON.stringify(obj);
+  return ContentService.createTextOutput(jsonString)
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 function getOrInsertSheet(ss, name) {
@@ -142,71 +125,37 @@ function initializeHeaders(mSheet, tSheet, lSheet, force) {
     mSheet.clear();
     mSheet.appendRow(['ID', 'Name', 'MemberCode', 'IDCard', 'Phone', 'Address', 'JoinedDate', 'Type', 'Shares', 'Savings', 'HousingDebt', 'LandDebt', 'GenDebt', 'Monthly', 'Missed']);
   }
-  if (tSheet.getLastRow() === 0 || force) {
-    tSheet.clear();
-    tSheet.appendRow(['ID', 'MemberID', 'Date', 'Timestamp', 'Housing', 'Land', 'Shares', 'Savings', 'Welfare', 'Insurance', 'Donation', 'GenLoan', 'Others', 'Note', 'Total', 'RecordedBy', 'Method', 'Bank', 'Account']);
-  }
-  if (lSheet.getLastRow() === 0 || force) {
-    lSheet.clear();
-    lSheet.appendRow(['ID', 'Date', 'Type', 'Category', 'Description', 'Amount', 'Method', 'RecordedBy', 'Note', 'Timestamp']);
-  }
 }
 
-function createResponse(status, data) {
-  var output = { status: status };
-  if (status === 'success') {
-    if (typeof data === 'object') Object.assign(output, data);
-    else output.message = data;
-  } else {
-    output.message = data;
-  }
-  
-  return ContentService.createTextOutput(JSON.stringify(output))
-    .setMimeType(ContentService.MimeType.TEXT)
-    .setHeader("Access-Control-Allow-Origin", "*");
-}
-
-function getMemberNameById(sheet, id) {
-  var data = sheet.getDataRange().getValues();
-  for (var i = 1; i < data.length; i++) {
-    if (data[i][0] == id) return data[i][1];
-  }
-  return "ไม่ทราบชื่อ";
-}
-
-function getMembersData(memberSheet, transSheet) {
-  var mRows = memberSheet.getDataRange().getValues();
-  var tRows = transSheet.getDataRange().getValues();
+function getMembersData(mSheet, tSheet) {
+  var mRows = mSheet.getDataRange().getValues();
+  var tRows = tSheet.getDataRange().getValues();
   if (mRows.length <= 1) return [];
-
-  var transactionsByMember = {};
-  for (var j = 1; j < tRows.length; j++) {
+  
+  var txMap = {};
+  for(var j=1; j<tRows.length; j++) {
     var mid = tRows[j][1];
-    if (!mid) continue;
-    if (!transactionsByMember[mid]) transactionsByMember[mid] = [];
-    transactionsByMember[mid].push({
-      id: tRows[j][0], memberId: tRows[j][1], date: tRows[j][2], timestamp: tRows[j][3],
-      housing: Number(tRows[j][4])||0, land: Number(tRows[j][5])||0, shares: Number(tRows[j][6])||0, 
-      savings: Number(tRows[j][7])||0, welfare: Number(tRows[j][8])||0, insurance: Number(tRows[j][9])||0, 
-      donation: Number(tRows[j][10])||0, generalLoan: Number(tRows[j][11])||0, others: Number(tRows[j][12])||0,
-      othersNote: tRows[j][13], totalAmount: Number(tRows[j][14])||0, recordedBy: tRows[j][15],
-      paymentMethod: tRows[j][16] || 'cash', bankName: tRows[j][17] || '', bankAccount: tRows[j][18] || ''
+    if(!txMap[mid]) txMap[mid] = [];
+    txMap[mid].push({
+      id: tRows[j][0], date: tRows[j][2], totalAmount: tRows[j][14], recordedBy: tRows[j][15],
+      housing: tRows[j][4], land: tRows[j][5], shares: tRows[j][6], savings: tRows[j][7],
+      generalLoan: tRows[j][11], timestamp: tRows[j][3]
     });
   }
 
   var members = [];
   for (var i = 1; i < mRows.length; i++) {
-    var m = mRows[i];
-    if (!m[0]) continue;
+    var r = mRows[i];
+    if (!r[0]) continue;
     members.push({
-      id: String(m[0]), name: m[1], memberCode: m[2],
-      personalInfo: { idCard: String(m[3]), phone: m[4], address: m[5] },
-      joinedDate: m[6], memberType: m[7], 
-      accumulatedShares: Number(m[8]) || 0, savingsBalance: Number(m[9]) || 0,
-      housingLoanBalance: Number(m[10]) || 0, landLoanBalance: Number(m[11]) || 0,
-      generalLoanBalance: Number(m[12]) || 0, monthlyInstallment: Number(m[13]) || 0,
-      missedInstallments: Number(m[14]) || 0,
-      transactions: transactionsByMember[m[0]] || []
+      id: String(r[0]), name: r[1], memberCode: String(r[2]),
+      personalInfo: { idCard: String(r[3]), phone: String(r[4]), address: String(r[5]) },
+      joinedDate: r[6], memberType: r[7],
+      accumulatedShares: Number(r[8])||0, savingsBalance: Number(r[9])||0,
+      housingLoanBalance: Number(r[10])||0, landLoanBalance: Number(r[11])||0,
+      generalLoanBalance: Number(r[12])||0, monthlyInstallment: Number(r[13])||0,
+      missedInstallments: Number(r[14])||0,
+      transactions: txMap[r[0]] || []
     });
   }
   return members;
@@ -217,12 +166,11 @@ function getLedgerData(sheet) {
   if (rows.length <= 1) return [];
   var ledger = [];
   for (var i = 1; i < rows.length; i++) {
-    var r = rows[i];
-    if (!r[0]) continue;
+    if (!rows[i][0]) continue;
     ledger.push({
-      id: r[0], date: r[1], type: r[2], category: r[3],
-      description: r[4], amount: Number(r[5]) || 0, paymentMethod: r[6],
-      recordedBy: r[7], note: r[8], timestamp: r[9]
+      id: rows[i][0], date: rows[i][1], type: rows[i][2], category: rows[i][3],
+      description: rows[i][4], amount: rows[i][5], paymentMethod: rows[i][6],
+      recordedBy: rows[i][7], timestamp: rows[i][9]
     });
   }
   return ledger;
@@ -233,11 +181,11 @@ function updateMemberBalancesFromTx(sheet, tx) {
   for (var i = 1; i < data.length; i++) {
     if (data[i][0] == tx.memberId) {
       var row = i + 1;
-      sheet.getRange(row, 9).setValue((Number(data[i][8]) || 0) + (Number(tx.shares) || 0));
-      sheet.getRange(row, 10).setValue((Number(data[i][9]) || 0) + (Number(tx.savings) || 0));
-      sheet.getRange(row, 11).setValue(Math.max(0, (Number(data[i][10]) || 0) - (Number(tx.housing) || 0)));
-      sheet.getRange(row, 12).setValue(Math.max(0, (Number(data[i][11]) || 0) - (Number(tx.land) || 0)));
-      sheet.getRange(row, 13).setValue(Math.max(0, (Number(data[i][12]) || 0) - (Number(tx.generalLoan) || 0)));
+      sheet.getRange(row, 9).setValue((Number(data[i][8])||0) + (Number(tx.shares)||0));
+      sheet.getRange(row, 10).setValue((Number(data[i][9])||0) + (Number(tx.savings)||0));
+      sheet.getRange(row, 11).setValue(Math.max(0, (Number(data[i][10])||0) - (Number(tx.housing)||0)));
+      sheet.getRange(row, 12).setValue(Math.max(0, (Number(data[i][11])||0) - (Number(tx.land)||0)));
+      sheet.getRange(row, 13).setValue(Math.max(0, (Number(data[i][12])||0) - (Number(tx.generalLoan)||0)));
       break;
     }
   }
@@ -248,13 +196,13 @@ function updateMemberData(sheet, id, updateData) {
   for (var i = 1; i < data.length; i++) {
     if (data[i][0] == id) {
       var row = i + 1;
-      if (updateData.name !== undefined) sheet.getRange(row, 2).setValue(updateData.name);
-      if (updateData.memberType !== undefined) sheet.getRange(row, 8).setValue(updateData.memberType);
-      if (updateData.joinedDate !== undefined) sheet.getRange(row, 7).setValue(updateData.joinedDate);
+      if (updateData.name) sheet.getRange(row, 2).setValue(updateData.name);
+      if (updateData.memberType) sheet.getRange(row, 8).setValue(updateData.memberType);
+      if (updateData.joinedDate) sheet.getRange(row, 7).setValue(updateData.joinedDate);
       if (updateData.personalInfo) {
-        if (updateData.personalInfo.idCard !== undefined) sheet.getRange(row, 4).setValue(updateData.personalInfo.idCard);
-        if (updateData.personalInfo.phone !== undefined) sheet.getRange(row, 5).setValue(updateData.personalInfo.phone);
-        if (updateData.personalInfo.address !== undefined) sheet.getRange(row, 6).setValue(updateData.personalInfo.address);
+        if (updateData.personalInfo.idCard) sheet.getRange(row, 4).setValue(updateData.personalInfo.idCard);
+        if (updateData.personalInfo.phone) sheet.getRange(row, 5).setValue(updateData.personalInfo.phone);
+        if (updateData.personalInfo.address) sheet.getRange(row, 6).setValue(updateData.personalInfo.address);
       }
       if (updateData.accumulatedShares !== undefined) sheet.getRange(row, 9).setValue(updateData.accumulatedShares);
       if (updateData.savingsBalance !== undefined) sheet.getRange(row, 10).setValue(updateData.savingsBalance);
