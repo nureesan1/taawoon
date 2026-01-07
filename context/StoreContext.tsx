@@ -61,7 +61,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (!url) throw new Error("กรุณาระบุ URL ในหน้าตั้งค่า");
     
     try {
-      // ใช้ URLSearchParams สำหรับ Simple Request เพื่อข้าม CORS Preflight
       const params = new URLSearchParams();
       params.append('action', action);
       params.append('data', JSON.stringify(payload));
@@ -70,28 +69,26 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         mode: 'cors',
-        cache: 'no-cache', // ป้องกันบราวเซอร์จำ Error เก่า
+        cache: 'no-cache',
         redirect: 'follow',
         body: params.toString()
       });
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      
       const text = await response.text();
       
-      // ตรวจสอบว่าผลลัพธ์เป็น JSON จริงหรือไม่ (Google มักส่งหน้า Login มาถ้าตั้งค่า Anyone ไม่ถูก)
       if (text.trim().startsWith('<')) {
         if (text.includes('Google Account')) {
           throw new Error("ถูกบล็อก: โปรดตั้งค่าการ Deploy เป็น 'Anyone'");
         }
-        throw new Error("เซิร์ฟเวอร์ตอบกลับเป็น HTML (อาจจะเกิดจาก URL ผิด)");
+        throw new Error("เซิร์ฟเวอร์ตอบกลับเป็น HTML");
       }
 
       const data = JSON.parse(text);
       if (data.status === 'error') throw new Error(data.message);
       return data;
     } catch (e: any) {
-      if (retries > 0 && e.message.includes('fetch')) {
+      if (retries > 0 && (e.message.includes('fetch') || e.message.includes('HTTP'))) {
         await new Promise(r => setTimeout(r, 1000));
         return callApi(action, payload, retries - 1);
       }
@@ -125,42 +122,36 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   useEffect(() => { refreshData(); }, [refreshData]);
 
-  const testConnection = async () => {
-    setConnectionStatus('checking');
-    try {
-      await callApi('ping');
-      setConnectionStatus('connected');
-      return true;
-    } catch {
-      setConnectionStatus('disconnected');
-      return false;
-    }
-  };
-
-  const initDatabase = async () => {
+  const addLedgerItem = async (item: Omit<LedgerTransaction, 'id' | 'timestamp'>) => {
     setIsLoading(true);
     try {
-      await callApi('initDatabase');
-      alert('เริ่มต้นฐานข้อมูลสำเร็จ');
-      refreshData();
+      await callApi('addLedgerItem', { 
+        item: { ...item, id: 'L' + Date.now(), timestamp: Date.now() } 
+      });
+      await refreshData();
+      return true;
     } catch (e: any) {
-      alert('Error: ' + e.message);
+      alert('บันทึกบัญชีไม่สำเร็จ: ' + e.message);
+      return false;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const updateConfig = (newConfig: AppConfig) => {
-    setConfig(newConfig);
-    localStorage.setItem('app_config', JSON.stringify(newConfig));
+  const deleteLedgerItem = async (id: string) => {
+    setIsLoading(true);
+    try {
+      await callApi('deleteLedgerItem', { id });
+      await refreshData();
+      return true;
+    } catch (e: any) {
+      alert('ลบรายการไม่สำเร็จ: ' + e.message);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const resetConfig = () => {
-    localStorage.removeItem('app_config');
-    setConfig(DEFAULT_CONFIG);
-  };
-
-  // ส่วนจัดการ Member และ Transaction (ย่อเพื่อประหยัดพื้นที่)...
   const login = (role: UserRole, id?: string) => {
     if (role === UserRole.STAFF) setCurrentUser({ role, name: 'ผู้ดูแลระบบ' });
     else {
@@ -172,6 +163,17 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const logout = () => { setCurrentUser(null); setCurrentView('dashboard'); };
   
+  // Fix: Added missing implementations for updateConfig and resetConfig
+  const updateConfig = (newConfig: AppConfig) => {
+    setConfig(newConfig);
+    localStorage.setItem('app_config', JSON.stringify(newConfig));
+  };
+
+  const resetConfig = () => {
+    setConfig(DEFAULT_CONFIG);
+    localStorage.removeItem('app_config');
+  };
+
   const addTransaction = async (tx: any) => {
     setIsLoading(true);
     try {
@@ -194,8 +196,17 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       addMember: async (m) => { await callApi('addMember', { member: m }); refreshData(); return true; },
       updateMember: async (id, d) => { await callApi('updateMember', { id, data: d }); refreshData(); return true; },
       deleteMember: async (id) => { await callApi('deleteMember', { id }); refreshData(); return true; },
-      initDatabase, testConnection,
-      addLedgerItem: async (i) => true, deleteLedgerItem: async (id) => true, updateLedgerItem: async (id, d) => true
+      addLedgerItem, deleteLedgerItem, updateLedgerItem: async (id, d) => true,
+      initDatabase: async () => { 
+        setIsLoading(true); 
+        try { await callApi('initDatabase'); alert('เริ่มต้นสำเร็จ'); refreshData(); } 
+        catch (e: any) { alert(e.message); } 
+        finally { setIsLoading(false); } 
+      }, 
+      testConnection: async () => {
+        try { await callApi('ping'); setConnectionStatus('connected'); return true; } 
+        catch { setConnectionStatus('disconnected'); return false; }
+      }
     }}>
       {isLoading && <LoadingOverlay />}
       {children}

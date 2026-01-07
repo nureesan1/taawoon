@@ -1,6 +1,6 @@
 
 /**
- * Google Apps Script for Taawoon Cooperative System (Fixed Version)
+ * Google Apps Script for Taawoon Cooperative System (Final Ledger Fix)
  * ---------------------------------------------------------------------
  * Target Sheet ID: 1YJQaoc3vP_5wrLscsbB-OwX_35RtjawxxcbCtcno9_o
  */
@@ -10,9 +10,6 @@ var TARGET_SHEET_ID = "1YJQaoc3vP_5wrLscsbB-OwX_35RtjawxxcbCtcno9_o";
 function getSS() {
   return SpreadsheetApp.openById(TARGET_SHEET_ID);
 }
-
-// ระบบ Web App ของ Google จะจัดการ CORS ให้เองโดยอัตโนมัติ 
-// เราไม่สามารถ setHeader ด้วยตนเองได้
 
 function doGet(e) {
   var status = "ONLINE";
@@ -32,12 +29,10 @@ function doPost(e) {
   var action, data;
   
   try {
-    // 1. ลองแกะข้อมูลจาก Parameter (กรณีส่งแบบ x-www-form-urlencoded)
     if (e.parameter && e.parameter.action) {
       action = e.parameter.action;
       data = e.parameter.data ? JSON.parse(e.parameter.data) : {};
     } 
-    // 2. ลองแกะจาก PostData (กรณีส่งแบบ JSON)
     else if (e.postData && e.postData.contents) {
       var json = JSON.parse(e.postData.contents);
       action = json.action;
@@ -99,6 +94,18 @@ function doPost(e) {
         updateMemberData(mSheet, data.id, data.data);
         return sendResponse({ status: 'success', message: 'อัปเดตข้อมูลสำเร็จ' });
 
+      case 'addLedgerItem':
+        var item = data.item;
+        lSheet.appendRow([
+          item.id, item.date, item.type, item.category, item.description, 
+          item.amount, item.paymentMethod, item.recordedBy, item.note || '', item.timestamp
+        ]);
+        return sendResponse({ status: 'success', message: 'บันทึกบัญชีสำเร็จ' });
+
+      case 'deleteLedgerItem':
+        deleteRowById(lSheet, data.id);
+        return sendResponse({ status: 'success', message: 'ลบรายการบัญชีสำเร็จ' });
+
       default:
         return sendResponse({ status: 'error', message: 'ไม่พบ action นี้: ' + action });
     }
@@ -107,7 +114,6 @@ function doPost(e) {
   }
 }
 
-// ฟังก์ชันส่งคำตอบกลับ (Fixed: ลบ setHeader ออก)
 function sendResponse(obj) {
   var jsonString = JSON.stringify(obj);
   return ContentService.createTextOutput(jsonString)
@@ -124,6 +130,14 @@ function initializeHeaders(mSheet, tSheet, lSheet, force) {
   if (mSheet.getLastRow() === 0 || force) {
     mSheet.clear();
     mSheet.appendRow(['ID', 'Name', 'MemberCode', 'IDCard', 'Phone', 'Address', 'JoinedDate', 'Type', 'Shares', 'Savings', 'HousingDebt', 'LandDebt', 'GenDebt', 'Monthly', 'Missed']);
+  }
+  if (tSheet.getLastRow() === 0 || force) {
+    tSheet.clear();
+    tSheet.appendRow(['ID', 'MemberID', 'Date', 'Timestamp', 'Housing', 'Land', 'Shares', 'Savings', 'Welfare', 'Insurance', 'Donation', 'GeneralLoan', 'Others', 'Note', 'Total', 'RecordedBy', 'Method']);
+  }
+  if (lSheet.getLastRow() === 0 || force) {
+    lSheet.clear();
+    lSheet.appendRow(['ID', 'Date', 'Type', 'Category', 'Description', 'Amount', 'PaymentMethod', 'RecordedBy', 'Note', 'Timestamp']);
   }
 }
 
@@ -168,9 +182,11 @@ function getLedgerData(sheet) {
   for (var i = 1; i < rows.length; i++) {
     if (!rows[i][0]) continue;
     ledger.push({
-      id: rows[i][0], date: rows[i][1], type: rows[i][2], category: rows[i][3],
-      description: rows[i][4], amount: rows[i][5], paymentMethod: rows[i][6],
-      recordedBy: rows[i][7], timestamp: rows[i][9]
+      id: String(rows[i][0]), date: String(rows[i][1]), type: String(rows[i][2]), 
+      category: String(rows[i][3]), description: String(rows[i][4]), 
+      amount: Number(rows[i][5]), paymentMethod: String(rows[i][6]),
+      recordedBy: String(rows[i][7]), note: String(rows[i][8]), 
+      timestamp: Number(rows[i][9])
     });
   }
   return ledger;
