@@ -26,46 +26,54 @@ export const Billing: React.FC = () => {
     ).slice(0, 10);
   }, [members, searchQuery]);
 
-  // Calculate Monthly Breakdown with the specific formula: Balance = PrevBalance + MonthlyAmount - Paid
-  const monthlyData = useMemo(() => {
-    if (!selectedMember) return [];
+  // Calculate Monthly Breakdown with specific logic provided by user
+  const billingCalculations = useMemo(() => {
+    if (!selectedMember) return { installments: [], initialDebt: 0, finalBalance: 0, finalMissed: 0 };
     
     const yearAD = targetYear - 543;
     const installments = [];
     
-    // Base balance from the start of the year (initial debt)
-    // In a real system, this would be retrieved from history, 
-    // here we use the current total as a baseline for simulation.
-    let initialDebt = (selectedMember.housingLoanBalance || 0) + 
-                      (selectedMember.landLoanBalance || 0) + 
-                      (selectedMember.generalLoanBalance || 0);
-
     const monthlyInstallment = selectedMember.monthlyInstallment || 0;
+    const missedBf = selectedMember.missedInstallments || 0;
+
+    // Formula: Initial Debt = Monthly Installment * Missed Installments Brought Forward
+    const initialDebt = monthlyInstallment * missedBf;
+
     const months = [
       "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
       "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
     ];
 
-    // Find transactions for this specific year
     const yearTxs = (selectedMember.transactions || []).filter(tx => {
       const d = new Date(tx.date);
       return d.getFullYear() === yearAD;
     });
 
     let runningBalance = initialDebt;
+    let runningMissed = missedBf;
     
     for (let i = 0; i < 12; i++) {
       const monthIndex = i;
       const txInMonth = yearTxs.filter(tx => new Date(tx.date).getMonth() === monthIndex);
       
-      // Total amount paid by member in this month for loan principals
       const paidInMonth = txInMonth.reduce((sum, tx) => 
         sum + (Number(tx.housing) || 0) + (Number(tx.land) || 0) + (Number(tx.generalLoan) || 0), 0);
       
       const txDate = txInMonth.length > 0 ? new Date(txInMonth[0].date).toLocaleDateString('th-TH') : '';
 
-      // Formula provided by user: Balance = PrevBalance + MonthlyInstallment - Paid
+      // Formula: Balance = Previous Balance + Monthly Installment - Paid
       const newBalance = runningBalance + monthlyInstallment - paidInMonth;
+      
+      // Calculate missed installments for this month
+      // If payment is less than the installment, missed installments increase
+      if (paidInMonth < monthlyInstallment) {
+        runningMissed += 1;
+      } else if (paidInMonth > monthlyInstallment) {
+        // If they pay extra, it could reduce missed installments (simplified logic)
+        const extraMonths = Math.floor(paidInMonth / monthlyInstallment) - 1;
+        runningMissed = Math.max(0, runningMissed - extraMonths);
+      }
+      // If paidInMonth == monthlyInstallment, runningMissed stays the same
 
       installments.push({
         no: i + 1,
@@ -76,14 +84,18 @@ export const Billing: React.FC = () => {
         date: txDate
       });
       
-      // Update running balance for the next month
       runningBalance = newBalance;
     }
 
-    return installments;
+    return { 
+      installments, 
+      initialDebt, 
+      finalBalance: runningBalance, 
+      finalMissed: runningMissed 
+    };
   }, [selectedMember, targetYear]);
 
-  const totalPaidYear = monthlyData.reduce((sum, d) => sum + d.paid, 0);
+  const totalPaidYear = billingCalculations.installments.reduce((sum, d) => sum + d.paid, 0);
   const formatTHB = (num: number) => new Intl.NumberFormat('th-TH').format(num);
 
   const handlePrint = () => {
@@ -168,7 +180,7 @@ export const Billing: React.FC = () => {
           {/* Summary Box */}
           <div className="mx-10 my-4 bg-slate-100 grid grid-cols-3 text-sm border-t border-b border-slate-300">
              <div className="p-3 border-r border-slate-300"><span className="font-bold">ยอดชำระต่องวด :</span> <span className="float-right">{formatTHB(selectedMember.monthlyInstallment || 0)} บาท/เดือน</span></div>
-             <div className="p-3 border-r border-slate-300"><span className="font-bold">ยอดรวมต้นปี {targetYear} :</span> <span className="float-right">{formatTHB(selectedMember.housingLoanBalance + selectedMember.landLoanBalance + selectedMember.generalLoanBalance)} บาท</span></div>
+             <div className="p-3 border-r border-slate-300"><span className="font-bold">ยอดรวมต้นปี {targetYear} :</span> <span className="float-right">{formatTHB(billingCalculations.initialDebt)} บาท</span></div>
              <div className="p-3"><span className="font-bold">งวดค้างชำระยกมา :</span> <span className="float-right">{selectedMember.missedInstallments || 0} งวด</span></div>
           </div>
 
@@ -191,10 +203,10 @@ export const Billing: React.FC = () => {
                    <td className="border border-slate-800 p-2">ยอดธนมา ปี {targetYear}</td>
                    <td className="border border-slate-800 p-2"></td>
                    <td className="border border-slate-800 p-2"></td>
-                   <td className="border border-slate-800 p-2 text-right">฿ {formatTHB(selectedMember.housingLoanBalance + selectedMember.landLoanBalance + selectedMember.generalLoanBalance)}</td>
+                   <td className="border border-slate-800 p-2 text-right">฿ {formatTHB(billingCalculations.initialDebt)}</td>
                    <td className="border border-slate-800 p-2"></td>
                 </tr>
-                {monthlyData.map((row) => (
+                {billingCalculations.installments.map((row) => (
                   <tr key={row.no} className="h-8">
                     <td className="border border-slate-800 p-2 text-center">{row.no}</td>
                     <td className="border border-slate-800 p-2">{row.month}</td>
@@ -219,8 +231,8 @@ export const Billing: React.FC = () => {
           {/* Footer Highlights */}
           <div className="mx-10 my-6 bg-orange-50 p-4 border border-orange-200 flex justify-between items-center rounded-xl">
              <div className="text-xl font-black text-red-600 uppercase">ยอดที่ต้องชำระเงิน (สุทธิ) :</div>
-             <div className="text-3xl font-black text-red-600">{formatTHB(selectedMember.housingLoanBalance + selectedMember.landLoanBalance + selectedMember.generalLoanBalance)} <span className="text-lg font-bold">บาท</span></div>
-             <div className="text-3xl font-black text-red-600">{selectedMember.missedInstallments || 0} <span className="text-lg font-bold">งวด</span></div>
+             <div className="text-3xl font-black text-red-600">{formatTHB(billingCalculations.finalBalance)} <span className="text-lg font-bold">บาท</span></div>
+             <div className="text-3xl font-black text-red-600">{billingCalculations.finalMissed} <span className="text-lg font-bold">งวด</span></div>
           </div>
 
           {/* Payment Info */}
