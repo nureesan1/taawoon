@@ -3,7 +3,7 @@ import React from 'react';
 import { useStore } from '../context/StoreContext';
 import { 
   LogOut, LayoutDashboard, UserCircle, Settings as SettingsIcon, 
-  Banknote, Users, ClipboardList, BookOpen, History
+  Banknote, Users, ClipboardList, BookOpen, History, FileText
 } from 'lucide-react';
 import { UserRole } from '../types';
 
@@ -16,6 +16,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const navItems = [
     { id: 'dashboard', label: 'แดชบอร์ด', icon: LayoutDashboard, roles: [UserRole.MEMBER, UserRole.STAFF] },
+    { id: 'billing', label: 'ใบแจ้งหนี้', icon: FileText, roles: [UserRole.MEMBER, UserRole.STAFF] },
     { id: 'payment_history', label: 'ประวัติการชำระเงิน', icon: History, roles: [UserRole.MEMBER, UserRole.STAFF] },
     { id: 'member_profile', label: 'ข้อมูลส่วนตัว', icon: UserCircle, roles: [UserRole.MEMBER] },
     { id: 'record_payment', label: 'รับชำระสมาชิก', icon: Banknote, roles: [UserRole.STAFF] },

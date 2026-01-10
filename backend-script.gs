@@ -1,6 +1,6 @@
 
 /**
- * Google Apps Script for Taawoon Cooperative System (Final Ledger Fix)
+ * Google Apps Script for Taawoon Cooperative System (Stable Version)
  * ---------------------------------------------------------------------
  * Target Sheet ID: 1YJQaoc3vP_5wrLscsbB-OwX_35RtjawxxcbCtcno9_o
  */
@@ -74,6 +74,14 @@ function doPost(e) {
           0, '', tx.totalAmount, tx.recordedBy, tx.paymentMethod
         ]);
         updateMemberBalancesFromTx(mSheet, tx);
+        
+        // บันทึกบัญชีรายรับ-รายจ่ายอัตโนมัติเมื่อมีการรับชำระเงิน
+        lSheet.appendRow([
+          'L-TX-' + tx.id, tx.date, 'income', 'รับชำระเงินสมาชิก', 
+          'รับชำระเงินจาก ' + tx.memberId, tx.totalAmount, 
+          tx.paymentMethod, tx.recordedBy, 'Auto-sync', tx.timestamp
+        ]);
+        
         return sendResponse({ status: 'success', message: 'บันทึกสำเร็จ' });
       
       case 'addMember':
@@ -141,6 +149,17 @@ function initializeHeaders(mSheet, tSheet, lSheet, force) {
   }
 }
 
+function formatDate(val) {
+  if (!val) return "";
+  try {
+    var d = new Date(val);
+    if (isNaN(d.getTime())) return String(val);
+    return Utilities.formatDate(d, "GMT+7", "yyyy-MM-dd");
+  } catch(e) {
+    return String(val);
+  }
+}
+
 function getMembersData(mSheet, tSheet) {
   var mRows = mSheet.getDataRange().getValues();
   var tRows = tSheet.getDataRange().getValues();
@@ -151,9 +170,20 @@ function getMembersData(mSheet, tSheet) {
     var mid = tRows[j][1];
     if(!txMap[mid]) txMap[mid] = [];
     txMap[mid].push({
-      id: tRows[j][0], date: tRows[j][2], totalAmount: tRows[j][14], recordedBy: tRows[j][15],
-      housing: tRows[j][4], land: tRows[j][5], shares: tRows[j][6], savings: tRows[j][7],
-      generalLoan: tRows[j][11], timestamp: tRows[j][3]
+      id: tRows[j][0], 
+      date: formatDate(tRows[j][2]), 
+      totalAmount: Number(tRows[j][14])||0, 
+      recordedBy: tRows[j][15],
+      housing: Number(tRows[j][4])||0, 
+      land: Number(tRows[j][5])||0, 
+      shares: Number(tRows[j][6])||0, 
+      savings: Number(tRows[j][7])||0,
+      generalLoan: Number(tRows[j][11])||0, 
+      timestamp: Number(tRows[j][3])||0,
+      paymentMethod: tRows[j][16],
+      welfare: Number(tRows[j][8])||0,
+      insurance: Number(tRows[j][9])||0,
+      donation: Number(tRows[j][10])||0
     });
   }
 
@@ -164,7 +194,7 @@ function getMembersData(mSheet, tSheet) {
     members.push({
       id: String(r[0]), name: r[1], memberCode: String(r[2]),
       personalInfo: { idCard: String(r[3]), phone: String(r[4]), address: String(r[5]) },
-      joinedDate: r[6], memberType: r[7],
+      joinedDate: formatDate(r[6]), memberType: r[7],
       accumulatedShares: Number(r[8])||0, savingsBalance: Number(r[9])||0,
       housingLoanBalance: Number(r[10])||0, landLoanBalance: Number(r[11])||0,
       generalLoanBalance: Number(r[12])||0, monthlyInstallment: Number(r[13])||0,
@@ -182,10 +212,15 @@ function getLedgerData(sheet) {
   for (var i = 1; i < rows.length; i++) {
     if (!rows[i][0]) continue;
     ledger.push({
-      id: String(rows[i][0]), date: String(rows[i][1]), type: String(rows[i][2]), 
-      category: String(rows[i][3]), description: String(rows[i][4]), 
-      amount: Number(rows[i][5]), paymentMethod: String(rows[i][6]),
-      recordedBy: String(rows[i][7]), note: String(rows[i][8]), 
+      id: String(rows[i][0]), 
+      date: formatDate(rows[i][1]), 
+      type: String(rows[i][2]), 
+      category: String(rows[i][3]), 
+      description: String(rows[i][4]), 
+      amount: Number(rows[i][5]), 
+      paymentMethod: String(rows[i][6]),
+      recordedBy: String(rows[i][7]), 
+      note: String(rows[i][8]), 
       timestamp: Number(rows[i][9])
     });
   }

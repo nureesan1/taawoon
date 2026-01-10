@@ -1,15 +1,15 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { 
   Plus, Search, TrendingUp, TrendingDown, Wallet, Banknote, 
   Landmark, Filter, Calendar, Trash2, Edit2, CheckCircle2,
-  ChevronDown, ChevronUp, FileText, Info
+  ChevronDown, ChevronUp, FileText, Info, BookOpen, RefreshCw
 } from 'lucide-react';
 import { LedgerTransaction, TransactionType, PaymentMethod } from '../types';
 
 const CATEGORIES = {
-  income: ['รายได้', 'รายได้น้ำประปา', 'ขายสินค้า', 'ค่าบริการ', 'อื่นๆ'],
+  income: ['รับชำระเงินสมาชิก', 'รายได้', 'รายได้น้ำประปา', 'ขายสินค้า', 'ค่าบริการ', 'อื่นๆ'],
   expense: [
     'เบี้ยประชุม', 'ค่าน้ำมัน', 'ค่าเช่า', 'ค่าน้ำ', 'ค่าไฟ', 
     'ค่าอินเทอร์เน็ต', 'ค่าเดินทาง', 'ค่าวัสดุ', 'ค่าแรง', 
@@ -17,16 +17,21 @@ const CATEGORIES = {
   ]
 };
 
+const getTodayStr = () => new Date().toISOString().split('T')[0];
+
 export const FinancialTracker: React.FC = () => {
-  const { ledger, addLedgerItem, deleteLedgerItem, currentUser } = useStore();
+  const { ledger, addLedgerItem, deleteLedgerItem, currentUser, refreshData } = useStore();
   
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | TransactionType>('all');
-  const [dateRange, setDateRange] = useState({ start: '', end: new Date().toISOString().split('T')[0] });
+  const [dateRange, setDateRange] = useState({ 
+    start: '', // ว่างเพื่อให้เห็นประวัติทั้งหมดตั้งแต่ต้น
+    end: getTodayStr() 
+  });
   
   const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
+    date: getTodayStr(),
     type: 'income' as TransactionType,
     category: '',
     description: '',
@@ -36,26 +41,34 @@ export const FinancialTracker: React.FC = () => {
   });
 
   const filteredLedger = useMemo(() => {
+    if (!ledger) return [];
     return ledger.filter(item => {
-      const matchesSearch = item.description.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            item.category.toLowerCase().includes(searchTerm.toLowerCase());
+      const cleanSearch = searchTerm.trim().toLowerCase();
+      const matchesSearch = !cleanSearch || 
+                            item.description.toLowerCase().includes(cleanSearch) || 
+                            item.category.toLowerCase().includes(cleanSearch);
+      
       const matchesType = filterType === 'all' || item.type === filterType;
+      
+      // การเปรียบเทียบวันที่แบบ String (yyyy-MM-dd)
       const matchesDate = (!dateRange.start || item.date >= dateRange.start) && 
                           (!dateRange.end || item.date <= dateRange.end);
+                          
       return matchesSearch && matchesType && matchesDate;
     });
   }, [ledger, searchTerm, filterType, dateRange]);
 
   const summary = useMemo(() => {
     return filteredLedger.reduce((acc, item) => {
+      const amount = Number(item.amount) || 0;
       if (item.type === 'income') {
-        acc.income += item.amount;
-        if (item.paymentMethod === 'cash') acc.cashIncome += item.amount;
-        else acc.transferIncome += item.amount;
+        acc.income += amount;
+        if (item.paymentMethod === 'cash') acc.cashIncome += amount;
+        else acc.transferIncome += amount;
       } else {
-        acc.expense += item.amount;
-        if (item.paymentMethod === 'cash') acc.cashExpense += item.amount;
-        else acc.transferExpense += item.amount;
+        acc.expense += amount;
+        if (item.paymentMethod === 'cash') acc.cashExpense += amount;
+        else acc.transferExpense += amount;
       }
       return acc;
     }, { income: 0, expense: 0, cashIncome: 0, transferIncome: 0, cashExpense: 0, transferExpense: 0 });
@@ -81,7 +94,7 @@ export const FinancialTracker: React.FC = () => {
     if (success) {
       setShowForm(false);
       setFormData({
-        date: new Date().toISOString().split('T')[0],
+        date: getTodayStr(),
         type: 'income',
         category: '',
         description: '',
@@ -97,18 +110,25 @@ export const FinancialTracker: React.FC = () => {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       
-      {/* Page Title */}
-      <div className="flex items-center gap-4 mb-4">
-        <div className="p-3 bg-[#064e3b] rounded-2xl text-white shadow-lg">
-          <BookOpenIcon className="w-8 h-8" />
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-[#064e3b] rounded-2xl text-white shadow-lg">
+            <BookOpen className="w-8 h-8" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-slate-800 tracking-tight">บันทึกบัญชีรายรับ-รายจ่าย</h2>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-0.5">Cooperative General Ledger</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-2xl font-black text-slate-800 tracking-tight">บันทึกบัญชีรายรับ-รายจ่าย</h2>
-          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-0.5">Cooperative General Ledger</p>
-        </div>
+        <button 
+          onClick={() => refreshData()}
+          className="p-3 bg-white border border-slate-100 rounded-2xl text-slate-400 hover:text-teal-600 transition-colors shadow-sm"
+          title="รีเฟรชข้อมูล"
+        >
+          <RefreshCw className="w-5 h-5" />
+        </button>
       </div>
 
-      {/* Quick Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <SummaryCard 
           title="รายรับรวม" 
@@ -133,7 +153,6 @@ export const FinancialTracker: React.FC = () => {
         />
       </div>
 
-      {/* Main Actions & Filters */}
       <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col lg:flex-row justify-between items-center gap-4">
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
           <div className="relative flex-1 lg:w-64">
@@ -155,6 +174,12 @@ export const FinancialTracker: React.FC = () => {
             <option value="income">เฉพาะรายรับ</option>
             <option value="expense">เฉพาะรายจ่าย</option>
           </select>
+          <div className="flex items-center gap-2">
+             <Calendar className="w-4 h-4 text-slate-400" />
+             <input type="date" value={dateRange.start} onChange={(e) => setDateRange({...dateRange, start: e.target.value})} className="px-2 py-1 text-xs bg-slate-50 border rounded-lg" title="ตั้งแต่วันที่" />
+             <span className="text-xs text-slate-400">-</span>
+             <input type="date" value={dateRange.end} onChange={(e) => setDateRange({...dateRange, end: e.target.value})} className="px-2 py-1 text-xs bg-slate-50 border rounded-lg" title="ถึงวันที่" />
+          </div>
         </div>
 
         <button 
@@ -166,7 +191,6 @@ export const FinancialTracker: React.FC = () => {
         </button>
       </div>
 
-      {/* Entry Form */}
       {showForm && (
         <div className="bg-white rounded-3xl shadow-xl border border-teal-100 overflow-hidden animate-in slide-in-from-top-4 duration-300">
           <div className={`px-6 py-4 flex items-center gap-2 border-b ${formData.type === 'income' ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
@@ -228,7 +252,6 @@ export const FinancialTracker: React.FC = () => {
         </div>
       )}
 
-      {/* History Table */}
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
         <div className="px-8 py-6 border-b border-slate-50 flex justify-between items-center">
           <h3 className="text-lg font-black text-slate-800">ประวัติรายการ</h3>
@@ -251,8 +274,8 @@ export const FinancialTracker: React.FC = () => {
               {filteredLedger.map(item => (
                 <tr key={item.id} className="group hover:bg-slate-50/50 transition-all">
                   <td className="px-8 py-4">
-                    <div className="font-bold text-slate-700">{new Date(item.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</div>
-                    <div className="text-[10px] text-slate-300 font-mono tracking-tighter">{new Date(item.timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</div>
+                    <div className="font-bold text-slate-700">{item.date}</div>
+                    <div className="text-[10px] text-slate-300 font-mono tracking-tighter">{item.timestamp ? new Date(item.timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : ''}</div>
                   </td>
                   <td className="px-8 py-4">
                     <div className="font-black text-slate-800 leading-tight">{item.description}</div>
@@ -277,9 +300,13 @@ export const FinancialTracker: React.FC = () => {
                   </td>
                   <td className="px-8 py-4">
                     <div className="flex items-center justify-center gap-2">
-                       <button onClick={() => { if(confirm('ลบรายการนี้ใช่หรือไม่?')) deleteLedgerItem(item.id); }} className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100">
-                         <Trash2 className="w-4 h-4" />
-                       </button>
+                       {item.category !== 'รับชำระเงินสมาชิก' ? (
+                         <button onClick={() => { if(confirm('ลบรายการนี้ใช่หรือไม่?')) deleteLedgerItem(item.id); }} className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100">
+                           <Trash2 className="w-4 h-4" />
+                         </button>
+                       ) : (
+                         <span className="text-[9px] font-bold text-slate-300 italic">Auto-Sync</span>
+                       )}
                     </div>
                   </td>
                 </tr>
@@ -301,13 +328,6 @@ export const FinancialTracker: React.FC = () => {
     </div>
   );
 };
-
-const BookOpenIcon = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-  </svg>
-);
 
 const SummaryCard: React.FC<{ title: string; value: string; subText: string; icon: React.ReactNode; colorClass: string }> = ({ title, value, subText, icon, colorClass }) => (
   <div className={`p-6 rounded-[2rem] border shadow-sm ${colorClass} transition-transform hover:-translate-y-1`}>

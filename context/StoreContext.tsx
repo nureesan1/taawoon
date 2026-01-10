@@ -4,7 +4,7 @@ import { Member, Transaction, UserRole, AppConfig, LedgerTransaction } from '../
 import { MOCK_MEMBERS } from '../constants';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 
-type AppView = 'dashboard' | 'register_member' | 'member_management' | 'member_profile' | 'settings' | 'record_payment' | 'daily_summary' | 'accounting' | 'payment_history';
+type AppView = 'dashboard' | 'register_member' | 'member_management' | 'member_profile' | 'settings' | 'record_payment' | 'daily_summary' | 'accounting' | 'payment_history' | 'billing';
 
 interface StoreContextType {
   members: Member[];
@@ -67,28 +67,27 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         mode: 'cors',
         cache: 'no-cache',
         redirect: 'follow',
-        body: params.toString()
+        body: params
       });
 
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
       const text = await response.text();
       
       if (text.trim().startsWith('<')) {
         if (text.includes('Google Account')) {
-          throw new Error("ถูกบล็อก: โปรดตั้งค่าการ Deploy เป็น 'Anyone'");
+          throw new Error("ถูกบล็อก: โปรดตั้งค่า Deployment เป็น 'Anyone'");
         }
-        throw new Error("เซิร์ฟเวอร์ตอบกลับเป็น HTML");
+        throw new Error("เซิร์ฟเวอร์ตอบกลับเป็น HTML (อาจเป็นเพราะ URL ผิด)");
       }
 
       const data = JSON.parse(text);
       if (data.status === 'error') throw new Error(data.message);
       return data;
     } catch (e: any) {
-      if (retries > 0 && (e.message.includes('fetch') || e.message.includes('HTTP'))) {
+      if (retries > 0 && (e.message.includes('fetch') || e.message.includes('HTTP') || e.message.includes('Failed to fetch'))) {
         await new Promise(r => setTimeout(r, 1000));
         return callApi(action, payload, retries - 1);
       }
@@ -99,6 +98,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const refreshData = useCallback(async () => {
     if (!config.useGoogleSheets || !config.scriptUrl) {
       setMembers(MOCK_MEMBERS);
+      setLedger([]); 
       setConnectionStatus('disconnected');
       return;
     }
@@ -111,14 +111,14 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setLedger(data.ledger || []);
         setConnectionStatus('connected');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Connection Failed:", error);
       setConnectionStatus('disconnected');
       if (members.length === 0) setMembers(MOCK_MEMBERS);
     } finally {
       setIsLoading(false);
     }
-  }, [config]);
+  }, [config, members.length]);
 
   useEffect(() => { refreshData(); }, [refreshData]);
 
@@ -163,7 +163,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const logout = () => { setCurrentUser(null); setCurrentView('dashboard'); };
   
-  // Fix: Added missing implementations for updateConfig and resetConfig
   const updateConfig = (newConfig: AppConfig) => {
     setConfig(newConfig);
     localStorage.setItem('app_config', JSON.stringify(newConfig));
