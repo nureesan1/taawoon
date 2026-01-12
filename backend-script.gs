@@ -83,6 +83,17 @@ function doPost(e) {
         ]);
         
         return sendResponse({ status: 'success', message: 'บันทึกสำเร็จ' });
+
+      case 'deleteTransaction':
+        var txId = data.id;
+        var mId = data.memberId;
+        // 1. คืนยอดหนี้ให้สมาชิก
+        revertMemberBalancesFromTx(mSheet, tSheet, txId, mId);
+        // 2. ลบออกจากตารางธุรกรรม
+        deleteRowById(tSheet, txId);
+        // 3. ลบรายการบัญชี Auto-sync ที่เกี่ยวข้อง
+        deleteRowById(lSheet, 'L-TX-' + txId);
+        return sendResponse({ status: 'success', message: 'ลบรายการและคืนยอดหนี้สำเร็จ' });
       
       case 'addMember':
         var m = data.member;
@@ -237,6 +248,32 @@ function updateMemberBalancesFromTx(sheet, tx) {
       sheet.getRange(row, 11).setValue(Math.max(0, (Number(data[i][10])||0) - (Number(tx.housing)||0)));
       sheet.getRange(row, 12).setValue(Math.max(0, (Number(data[i][11])||0) - (Number(tx.land)||0)));
       sheet.getRange(row, 13).setValue(Math.max(0, (Number(data[i][12])||0) - (Number(tx.generalLoan)||0)));
+      break;
+    }
+  }
+}
+
+function revertMemberBalancesFromTx(mSheet, tSheet, txId, mId) {
+  var tData = tSheet.getDataRange().getValues();
+  var txRowData = null;
+  for (var i = 1; i < tData.length; i++) {
+    if (tData[i][0] == txId) {
+      txRowData = tData[i];
+      break;
+    }
+  }
+  if (!txRowData) return;
+
+  var mData = mSheet.getDataRange().getValues();
+  for (var i = 1; i < mData.length; i++) {
+    if (mData[i][0] == mId) {
+      var row = i + 1;
+      // Revert logic: Add back paid amounts to debts, subtract from assets
+      mSheet.getRange(row, 9).setValue((Number(mData[i][8])||0) - (Number(txRowData[6])||0)); // Shares (col 7 in Sheet, index 6)
+      mSheet.getRange(row, 10).setValue((Number(mData[i][9])||0) - (Number(txRowData[7])||0)); // Savings (col 8, index 7)
+      mSheet.getRange(row, 11).setValue((Number(mData[i][10])||0) + (Number(txRowData[4])||0)); // Housing (col 5, index 4)
+      mSheet.getRange(row, 12).setValue((Number(mData[i][11])||0) + (Number(txRowData[5])||0)); // Land (col 6, index 5)
+      mSheet.getRange(row, 13).setValue((Number(mData[i][12])||0) + (Number(txRowData[11])||0)); // General (col 12, index 11)
       break;
     }
   }

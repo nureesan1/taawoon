@@ -3,12 +3,12 @@ import React, { useState, useMemo } from 'react';
 import { useStore } from '../context/StoreContext';
 import { 
   Search, History, Calendar, Banknote, Landmark, Clock, 
-  ArrowLeft, Download, Filter, ChevronRight, FileText
+  Trash2, Download, FileText, AlertTriangle
 } from 'lucide-react';
 import { UserRole } from '../types';
 
 export const PaymentHistory: React.FC = () => {
-  const { members, currentUser, setView } = useStore();
+  const { members, currentUser, deleteTransaction } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
 
@@ -44,6 +44,12 @@ export const PaymentHistory: React.FC = () => {
       return matchesSearch && matchesDate;
     });
   }, [allTransactions, searchTerm, dateFilter]);
+
+  const handleDelete = async (txId: string, mId: string, memberName: string, amount: number) => {
+    if (confirm(`⚠️ ยืนยันการลบรายการชำระเงินของ "${memberName}" ยอดเงิน ${amount.toLocaleString()} ฿ ใช่หรือไม่?\n\n*ระบบจะทำการคืนยอดหนี้ให้กับสมาชิกโดยอัตโนมัติ*`)) {
+      await deleteTransaction(txId, mId);
+    }
+  };
 
   const formatTHB = (num: number) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(num);
 
@@ -124,6 +130,7 @@ export const PaymentHistory: React.FC = () => {
                 <th className="px-8 py-5">รายละเอียด</th>
                 <th className="px-8 py-5">วิธีชำระ</th>
                 <th className="px-8 py-5 text-right">ยอดชำระ</th>
+                {currentUser?.role === UserRole.STAFF && <th className="px-8 py-5 text-center">จัดการ</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -134,6 +141,9 @@ export const PaymentHistory: React.FC = () => {
                 if (tx.shares > 0) breakdown.push('หุ้น');
                 if (tx.savings > 0) breakdown.push('ออม');
                 if (tx.welfare > 0) breakdown.push('สวัสดิการ');
+                if (tx.generalLoan > 0) breakdown.push('สินเชื่อ');
+                if (tx.insurance > 0) breakdown.push('ประกัน');
+                if (tx.donation > 0) breakdown.push('บริจาค');
 
                 return (
                   <tr key={tx.id} className="group hover:bg-slate-50/50 transition-all">
@@ -174,12 +184,25 @@ export const PaymentHistory: React.FC = () => {
                        </div>
                        <div className="text-[9px] text-slate-300 uppercase font-bold tracking-tighter">โดย {tx.recordedBy}</div>
                     </td>
+                    {currentUser?.role === UserRole.STAFF && (
+                      <td className="px-8 py-5">
+                        <div className="flex items-center justify-center">
+                           <button 
+                             onClick={() => handleDelete(tx.id, tx.memberId, tx.memberName, tx.totalAmount)}
+                             className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                             title="ลบรายการและคืนยอดหนี้"
+                           >
+                              <Trash2 className="w-5 h-5" />
+                           </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
               {filteredTransactions.length === 0 && (
                 <tr>
-                  <td colSpan={currentUser?.role === UserRole.STAFF ? 5 : 4} className="py-24 text-center">
+                  <td colSpan={currentUser?.role === UserRole.STAFF ? 6 : 4} className="py-24 text-center">
                     <div className="flex flex-col items-center justify-center text-slate-300">
                       <FileText className="w-16 h-16 mb-4 opacity-10" />
                       <p className="font-black">ไม่พบประวัติการชำระเงินในช่วงเวลานี้</p>

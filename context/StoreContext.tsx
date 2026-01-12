@@ -18,6 +18,7 @@ interface StoreContextType {
   login: (role: UserRole, memberId?: string) => void;
   logout: () => void;
   addTransaction: (transaction: Omit<Transaction, 'id' | 'timestamp'>) => Promise<boolean>;
+  deleteTransaction: (id: string, memberId: string) => Promise<boolean>;
   addLedgerItem: (item: Omit<LedgerTransaction, 'id' | 'timestamp'>) => Promise<boolean>;
   deleteLedgerItem: (id: string) => Promise<boolean>;
   updateLedgerItem: (id: string, data: Partial<LedgerTransaction>) => Promise<boolean>;
@@ -220,10 +221,24 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
+  const deleteTransaction = async (id: string, memberId: string) => {
+    setIsLoading(true);
+    try {
+      await callApi('deleteTransaction', { id, memberId });
+      await refreshData();
+      return true;
+    } catch (e: any) {
+      alert('ลบรายการไม่สำเร็จ: ' + e.message);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <StoreContext.Provider value={{
       members, ledger, currentUser, currentView, config, isLoading, connectionStatus, errorMessage,
-      login, logout, addTransaction, getMember: (id) => members.find(m => m.id === id),
+      login, logout, addTransaction, deleteTransaction, getMember: (id) => members.find(m => m.id === id),
       setView: setCurrentView, updateConfig, resetConfig, refreshData,
       addMember: async (m) => { await callApi('addMember', { member: m }); refreshData(); return true; },
       updateMember: async (id, d) => { await callApi('updateMember', { id, data: d }); refreshData(); return true; },
