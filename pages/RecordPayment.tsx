@@ -214,9 +214,9 @@ export const RecordPayment: React.FC = () => {
 
     if (success) {
       setIsSuccess(true);
-      // Redirect to daily summary after short delay to show success state
+      // Redirect to payment history after short delay to show success state
       setTimeout(() => {
-        setView('daily_summary');
+        setView('payment_history');
       }, 1500);
     }
   };

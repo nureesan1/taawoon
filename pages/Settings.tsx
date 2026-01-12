@@ -1,10 +1,10 @@
 
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
-import { Save, Database, RotateCcw, Link, Link2Off, Loader2, Globe, Trash2 } from 'lucide-react';
+import { Save, Database, RotateCcw, Link, Link2Off, Loader2, Globe, Trash2, AlertCircle } from 'lucide-react';
 
 export const Settings: React.FC = () => {
-  const { config, updateConfig, resetConfig, refreshData, initDatabase, testConnection, connectionStatus } = useStore();
+  const { config, updateConfig, resetConfig, refreshData, initDatabase, testConnection, connectionStatus, errorMessage } = useStore();
   const [formData, setFormData] = useState(config);
   const [isSaved, setIsSaved] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -29,9 +29,20 @@ export const Settings: React.FC = () => {
         <h1 className="text-2xl font-bold text-slate-800">ตั้งค่าระบบ</h1>
         <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold border ${connectionStatus === 'connected' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
            {connectionStatus === 'connected' ? <Link className="w-3 h-3" /> : <Link2Off className="w-3 h-3" />}
-           {connectionStatus.toUpperCase()}
+           {connectionStatus === 'checking' ? 'กำลังตรวจสอบ...' : connectionStatus.toUpperCase()}
         </div>
       </div>
+
+      {connectionStatus === 'disconnected' && errorMessage && (
+        <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+          <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+          <div className="space-y-1">
+            <p className="text-sm font-bold text-red-800">การเชื่อมต่อล้มเหลว</p>
+            <p className="text-xs text-red-600 leading-relaxed">{errorMessage}</p>
+            <p className="text-[10px] text-red-400 mt-2 font-medium italic">คำแนะนำ: ตรวจสอบว่าได้ตั้งค่า Google Apps Script Deployment เป็น "Anyone" และ "Execute as: Me" แล้วหรือยัง</p>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 space-y-6">
         <div className="space-y-4">

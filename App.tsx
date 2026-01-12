@@ -10,7 +10,6 @@ import { MemberProfile } from './pages/MemberProfile';
 import { RecordPayment } from './pages/RecordPayment';
 import { Settings } from './pages/Settings';
 import { MemberManagement } from './pages/MemberManagement';
-import { DailySummary } from './pages/DailySummary';
 import { FinancialTracker } from './pages/FinancialTracker';
 import { PaymentHistory } from './pages/PaymentHistory';
 import { Billing } from './pages/Billing';
@@ -29,7 +28,6 @@ const AppContent: React.FC = () => {
       {currentUser.role === UserRole.MEMBER && currentView === 'dashboard' && <MemberDashboard />}
       {currentUser.role === UserRole.MEMBER && currentView === 'member_profile' && <MemberProfile />}
       {currentUser.role === UserRole.MEMBER && currentView === 'payment_history' && <PaymentHistory />}
-      {currentUser.role === UserRole.MEMBER && currentView === 'billing' && <Billing />}
       
       {/* Staff Views */}
       {currentUser.role === UserRole.STAFF && currentView === 'dashboard' && <StaffDashboard />}
@@ -39,7 +37,6 @@ const AppContent: React.FC = () => {
       {currentUser.role === UserRole.STAFF && currentView === 'accounting' && <FinancialTracker />}
       {currentUser.role === UserRole.STAFF && currentView === 'settings' && <Settings />}
       {currentUser.role === UserRole.STAFF && currentView === 'member_management' && <MemberManagement />}
-      {currentUser.role === UserRole.STAFF && currentView === 'daily_summary' && <DailySummary />}
       {currentUser.role === UserRole.STAFF && currentView === 'billing' && <Billing />}
     </Layout>
   );

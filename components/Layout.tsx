@@ -3,7 +3,7 @@ import React from 'react';
 import { useStore } from '../context/StoreContext';
 import { 
   LogOut, LayoutDashboard, UserCircle, Settings as SettingsIcon, 
-  Banknote, Users, ClipboardList, BookOpen, History, FileText
+  Banknote, Users, BookOpen, History, FileText
 } from 'lucide-react';
 import { UserRole } from '../types';
 
@@ -16,12 +16,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const navItems = [
     { id: 'dashboard', label: 'แดชบอร์ด', icon: LayoutDashboard, roles: [UserRole.MEMBER, UserRole.STAFF] },
-    { id: 'billing', label: 'ใบแจ้งหนี้', icon: FileText, roles: [UserRole.MEMBER, UserRole.STAFF] },
+    { id: 'billing', label: 'ใบแจ้งหนี้', icon: FileText, roles: [UserRole.STAFF] },
     { id: 'payment_history', label: 'ประวัติการชำระเงิน', icon: History, roles: [UserRole.MEMBER, UserRole.STAFF] },
     { id: 'member_profile', label: 'ข้อมูลส่วนตัว', icon: UserCircle, roles: [UserRole.MEMBER] },
     { id: 'record_payment', label: 'รับชำระสมาชิก', icon: Banknote, roles: [UserRole.STAFF] },
     { id: 'accounting', label: 'รายรับ-รายจ่าย', icon: BookOpen, roles: [UserRole.STAFF] },
-    { id: 'daily_summary', label: 'สรุปรายวัน', icon: ClipboardList, roles: [UserRole.STAFF] },
     { id: 'member_management', label: 'สมาชิก', icon: Users, roles: [UserRole.STAFF] },
     { id: 'settings', label: 'ตั้งค่า', icon: SettingsIcon, roles: [UserRole.STAFF] },
   ];

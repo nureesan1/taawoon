@@ -4,7 +4,7 @@ import { Member, Transaction, UserRole, AppConfig, LedgerTransaction } from '../
 import { MOCK_MEMBERS } from '../constants';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 
-type AppView = 'dashboard' | 'register_member' | 'member_management' | 'member_profile' | 'settings' | 'record_payment' | 'daily_summary' | 'accounting' | 'payment_history' | 'billing';
+type AppView = 'dashboard' | 'register_member' | 'member_management' | 'member_profile' | 'settings' | 'record_payment' | 'accounting' | 'payment_history' | 'billing';
 
 interface StoreContextType {
   members: Member[];
@@ -14,6 +14,7 @@ interface StoreContextType {
   config: AppConfig;
   isLoading: boolean;
   connectionStatus: 'connected' | 'disconnected' | 'checking';
+  errorMessage: string | null;
   login: (role: UserRole, memberId?: string) => void;
   logout: () => void;
   addTransaction: (transaction: Omit<Transaction, 'id' | 'timestamp'>) => Promise<boolean>;
@@ -44,6 +45,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [ledger, setLedger] = useState<LedgerTransaction[]>([]);
   const [currentUser, setCurrentUser] = useState<{ role: UserRole; memberId?: string; name?: string } | null>(null);
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [config, setConfig] = useState<AppConfig>(() => {
     const saved = localStorage.getItem('app_config');
     if (!saved) return DEFAULT_CONFIG;
@@ -60,6 +62,14 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const url = config.scriptUrl.trim();
     if (!url) throw new Error("กรุณาระบุ URL ในหน้าตั้งค่า");
     
+    // Check if URL is a valid GAS URL
+    if (!url.startsWith('https://script.google.com')) {
+      throw new Error("URL ไม่ถูกต้อง ต้องขึ้นต้นด้วย https://script.google.com");
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
+
     try {
       const params = new URLSearchParams();
       params.append('action', action);
@@ -70,27 +80,48 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         mode: 'cors',
         cache: 'no-cache',
         redirect: 'follow',
-        body: params
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: params,
+        signal: controller.signal
       });
 
-      if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+      clearTimeout(timeoutId);
+
+      if (!response.ok) throw new Error(`HTTP Error: ${response.status} ${response.statusText}`);
+      
       const text = await response.text();
       
       if (text.trim().startsWith('<')) {
         if (text.includes('Google Account')) {
-          throw new Error("ถูกบล็อก: โปรดตั้งค่า Deployment เป็น 'Anyone'");
+          throw new Error("ถูกบล็อกโดย Google: โปรดตั้งค่า Deployment เป็น 'Anyone'");
         }
-        throw new Error("เซิร์ฟเวอร์ตอบกลับเป็น HTML (อาจเป็นเพราะ URL ผิด)");
+        throw new Error("เซิร์ฟเวอร์ตอบกลับเป็น HTML (เป็นไปได้ว่า URL ไม่ถูกต้อง หรือ Script ไม่ได้เผยแพร่แบบสาธารณะ)");
       }
 
-      const data = JSON.parse(text);
-      if (data.status === 'error') throw new Error(data.message);
-      return data;
+      try {
+        const data = JSON.parse(text);
+        if (data.status === 'error') throw new Error(data.message);
+        return data;
+      } catch (parseError) {
+        console.error("Parse Error Raw Text:", text);
+        throw new Error("ไม่สามารถอ่านข้อมูลจากเซิร์ฟเวอร์ได้ (Invalid JSON)");
+      }
     } catch (e: any) {
-      if (retries > 0 && (e.message.includes('fetch') || e.message.includes('HTTP') || e.message.includes('Failed to fetch'))) {
-        await new Promise(r => setTimeout(r, 1000));
+      clearTimeout(timeoutId);
+      
+      const isNetworkError = e.name === 'AbortError' || e.message.includes('fetch') || e.message.includes('NetworkError') || e.message.includes('Failed to fetch');
+
+      if (retries > 0 && isNetworkError) {
+        console.warn(`API Call failed, retrying... (${retries} retries left)`);
+        await new Promise(r => setTimeout(r, 2000));
         return callApi(action, payload, retries - 1);
       }
+
+      if (e.name === 'AbortError') throw new Error("การเชื่อมต่อหมดเวลา (Timeout) กรุณาลองใหม่อีกครั้ง");
+      if (e.message.includes('Failed to fetch')) throw new Error("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ (Failed to fetch) กรุณาตรวจสอบการตั้งค่า CORS หรือ Deployment ใน Google Apps Script");
+      
       throw e;
     }
   };
@@ -104,6 +135,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
     
     setIsLoading(true);
+    setErrorMessage(null);
     try {
       const data = await callApi('getData');
       if (data.status === 'success') {
@@ -114,6 +146,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     } catch (error: any) {
       console.error("Connection Failed:", error);
       setConnectionStatus('disconnected');
+      setErrorMessage(error.message);
       if (members.length === 0) setMembers(MOCK_MEMBERS);
     } finally {
       setIsLoading(false);
@@ -189,7 +222,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   return (
     <StoreContext.Provider value={{
-      members, ledger, currentUser, currentView, config, isLoading, connectionStatus,
+      members, ledger, currentUser, currentView, config, isLoading, connectionStatus, errorMessage,
       login, logout, addTransaction, getMember: (id) => members.find(m => m.id === id),
       setView: setCurrentView, updateConfig, resetConfig, refreshData,
       addMember: async (m) => { await callApi('addMember', { member: m }); refreshData(); return true; },
@@ -204,7 +237,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }, 
       testConnection: async () => {
         try { await callApi('ping'); setConnectionStatus('connected'); return true; } 
-        catch { setConnectionStatus('disconnected'); return false; }
+        catch (e: any) { setConnectionStatus('disconnected'); setErrorMessage(e.message); return false; }
       }
     }}>
       {isLoading && <LoadingOverlay />}
