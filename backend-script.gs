@@ -3,6 +3,11 @@
  * Google Apps Script for Taawoon Cooperative System (Stable Version)
  * ---------------------------------------------------------------------
  * Target Sheet ID: 1YJQaoc3vP_5wrLscsbB-OwX_35RtjawxxcbCtcno9_o
+ * ---------------------------------------------------------------------
+ * คำแนะนำ:
+ * 1. Deploy เป็น Web App
+ * 2. Execute as: Me
+ * 3. Who has access: Anyone
  */
 
 var TARGET_SHEET_ID = "1YJQaoc3vP_5wrLscsbB-OwX_35RtjawxxcbCtcno9_o";
@@ -17,8 +22,8 @@ function doGet(e) {
   
   var html = "<div style='font-family:sans-serif; text-align:center; padding:50px;'>" +
              "<h1 style='color:#064e3b'>✅ Cooperative API is " + status + "</h1>" +
-             "<p>Target Sheet: <b>" + TARGET_SHEET_ID + "</b></p>" +
-             "<p style='color:green; font-weight:bold;'>สถานะ: พร้อมใช้งาน</p>" +
+             "<p>Linked Sheet: <b style='font-family:monospace;'>" + TARGET_SHEET_ID + "</b></p>" +
+             "<p style='color:green; font-weight:bold;'>สถานะ: พร้อมใช้งาน (READY)</p>" +
              "<hr style='width:200px; margin:20px auto; border:0; border-top:1px solid #eee;'>" +
              "<p style='color:gray; font-size:12px;'>หากคุณเห็นหน้านี้ แสดงว่าการตั้งค่า 'Anyone' ถูกต้องแล้ว</p>" +
              "</div>";

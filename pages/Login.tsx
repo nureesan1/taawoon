@@ -2,10 +2,10 @@
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
 import { UserRole } from '../types';
-import { Users, ShieldCheck, Home, ArrowRight, CreditCard, Lock, User } from 'lucide-react';
+import { Users, ShieldCheck, Home, ArrowRight, CreditCard, Lock, Loader2 } from 'lucide-react';
 
 export const Login: React.FC = () => {
-  const { login, members } = useStore();
+  const { login, members, isLoading } = useStore();
   const [idCardInput, setIdCardInput] = useState('');
   const [error, setError] = useState('');
   
@@ -15,21 +15,32 @@ export const Login: React.FC = () => {
 
   const handleMemberLogin = () => {
     setError('');
+    
+    // ป้องกันการ Login หากข้อมูลยังโหลดไม่เสร็จ
+    if (isLoading && members.length === 0) {
+      setError('กำลังโหลดข้อมูลสมาชิกจากระบบ โปรดรอสักครู่...');
+      return;
+    }
+
     if (!idCardInput) {
       setError('กรุณากรอกเลขบัตรประชาชน');
       return;
     }
 
-    // Search for member with matching ID Card - robust string comparison
+    // ล้างค่าเลขบัตรให้เหลือแต่ตัวเลขเพื่อเปรียบเทียบ (ลบขีด/ช่องว่างออก)
+    const cleanInput = idCardInput.replace(/\D/g, '');
+
+    // ค้นหาสมาชิกโดยการเปรียบเทียบเลขบัตรที่ล้างค่าแล้วทั้งสองฝั่ง
     const member = members.find(m => {
         if (!m.personalInfo?.idCard) return false;
-        return String(m.personalInfo.idCard).trim() === idCardInput.trim();
+        const cleanDbId = String(m.personalInfo.idCard).replace(/\D/g, '');
+        return cleanDbId === cleanInput;
     });
 
     if (member) {
       login(UserRole.MEMBER, member.id);
     } else {
-      setError('ไม่พบข้อมูลสมาชิกในระบบ');
+      setError('ไม่พบข้อมูลสมาชิกในระบบ (ตรวจสอบเลขบัตรอีกครั้ง)');
     }
   };
 
@@ -60,7 +71,6 @@ export const Login: React.FC = () => {
         
         {/* Left Side: Branding */}
         <div className="md:w-[45%] bg-[#065F46] p-10 text-white flex flex-col justify-between relative overflow-hidden">
-            {/* Background Accent */}
             <div className="absolute top-0 right-0 w-full h-full opacity-[0.05] pointer-events-none">
                 <svg className="h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
                     <path d="M0 100 L 100 0 L 100 100 Z" fill="white" />
@@ -81,7 +91,7 @@ export const Login: React.FC = () => {
           </div>
 
           <div className="relative z-10 pt-10">
-            <p className="text-[10px] text-teal-400 uppercase tracking-widest font-bold opacity-60">VERSION 1.0.1</p>
+            <p className="text-[10px] text-teal-400 uppercase tracking-widest font-bold opacity-60">SYSTEM READY</p>
           </div>
         </div>
 
@@ -107,7 +117,8 @@ export const Login: React.FC = () => {
                         <input 
                             type="text"
                             maxLength={13}
-                            className={`w-full pl-11 pr-4 py-3 bg-slate-50 border ${error ? 'border-red-300' : 'border-slate-200'} rounded-xl focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50 outline-none text-slate-700 font-mono transition-all text-base`}
+                            disabled={isLoading && members.length === 0}
+                            className={`w-full pl-11 pr-4 py-3 bg-slate-50 border ${error ? 'border-red-300' : 'border-slate-200'} rounded-xl focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50 outline-none text-slate-700 font-mono transition-all text-base disabled:opacity-50`}
                             placeholder="รหัสประจำตัว 13 หลัก"
                             value={idCardInput}
                             onChange={(e) => setIdCardInput(e.target.value.replace(/[^0-9]/g, ''))}
@@ -115,15 +126,17 @@ export const Login: React.FC = () => {
                         />
                         <CreditCard className="w-5 h-5 text-slate-300 absolute left-4 top-1/2 -translate-y-1/2" />
                     </div>
-                    {error && <p className="text-xs text-red-500 mt-1 ml-1 animate-in fade-in slide-in-from-top-1">{error}</p>}
+                    {error && <p className="text-xs text-red-500 mt-1 ml-1 font-bold animate-in fade-in slide-in-from-top-1">{error}</p>}
+                    {isLoading && members.length === 0 && <p className="text-[10px] text-teal-600 font-bold mt-1 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> กำลังซิงค์ข้อมูลสมาชิกล่าสุด...</p>}
                 </div>
                 
                 <button 
                   onClick={handleMemberLogin}
-                  className="w-full bg-[#0D9488] text-white py-3.5 rounded-xl hover:bg-[#0F766E] font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-teal-100"
+                  disabled={isLoading && members.length === 0}
+                  className="w-full bg-[#0D9488] text-white py-3.5 rounded-xl hover:bg-[#0F766E] font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-teal-100 disabled:bg-slate-300"
                 >
-                  เข้าใช้งาน
-                  <ArrowRight className="w-4 h-4" />
+                  {isLoading && members.length === 0 ? <Loader2 className="w-5 h-5 animate-spin" /> : 'เข้าใช้งาน'}
+                  {!isLoading && <ArrowRight className="w-4 h-4" />}
                 </button>
               </div>
             </div>

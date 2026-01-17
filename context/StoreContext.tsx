@@ -99,7 +99,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       
       const text = await response.text();
       
-      // If response is HTML, it's usually a Google Login page (Deployment not set to "Anyone")
       if (text.trim().startsWith('<')) {
         if (text.includes('Google Account')) {
           throw new Error("การเข้าถึงถูกปฏิเสธ: โปรดตั้งค่า Deployment เป็น 'Anyone' (ทุกคน)");
@@ -141,15 +140,17 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const refreshData = useCallback(async () => {
-    if (!config.useGoogleSheets || !config.scriptUrl || config.scriptUrl.includes('YOUR_URL_HERE')) {
-      setMembers(MOCK_MEMBERS);
+    const url = config.scriptUrl.trim();
+    if (!config.useGoogleSheets || !url || url.includes('YOUR_URL_HERE')) {
+      setMembers([]);
       setLedger([]); 
       setConnectionStatus('disconnected');
+      setErrorMessage("กรุณาระบุ Web App URL ในหน้าตั้งค่า");
       return;
     }
     
     setIsLoading(true);
-    setLoadingMessage("กำลังโหลดข้อมูล...");
+    setLoadingMessage("กำลังโหลดข้อมูลจาก Google Sheets...");
     setErrorMessage(null);
     try {
       const data = await callApi('getData');
@@ -162,13 +163,14 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       console.error("Refresh Data Failed:", error);
       setConnectionStatus('disconnected');
       setErrorMessage(error.message);
-      // Fallback to mock if empty
-      if (members.length === 0) setMembers(MOCK_MEMBERS);
+      // No more fallback to mock data
+      setMembers([]);
+      setLedger([]);
     } finally {
       setIsLoading(false);
       setLoadingMessage(undefined);
     }
-  }, [config, members.length]);
+  }, [config]);
 
   useEffect(() => { refreshData(); }, [refreshData]);
 

@@ -1,16 +1,32 @@
+
 import React from 'react';
 import { useStore } from '../context/StoreContext';
 import { StatCard } from '../components/StatCard';
-import { Wallet, Landmark, TrendingDown, PiggyBank, History, FileText, Home, MapPin, Coins, CalendarCheck, AlertCircle, Info, Clock } from 'lucide-react';
+import { Wallet, Landmark, TrendingDown, PiggyBank, History, FileText, Home, MapPin, Coins, CalendarCheck, AlertCircle, Info, Clock, Loader2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 
 export const MemberDashboard: React.FC = () => {
-  const { currentUser, getMember } = useStore();
+  const { currentUser, getMember, isLoading } = useStore();
   
-  if (!currentUser?.memberId) return <div className="flex items-center justify-center min-h-[60vh] text-slate-400">กำลังโหลดข้อมูล...</div>;
+  if (!currentUser?.memberId) return <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-400 gap-4">
+    <Loader2 className="w-10 h-10 animate-spin text-teal-600" />
+    <p className="font-bold">กำลังตรวจสอบข้อมูลสมาชิก...</p>
+  </div>;
   
   const member = getMember(currentUser.memberId);
-  if (!member) return <div className="flex items-center justify-center min-h-[60vh] text-red-500 font-bold">ไม่พบข้อมูลสมาชิก</div>;
+  
+  if (!member && isLoading) {
+    return <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-400 gap-4">
+      <Loader2 className="w-10 h-10 animate-spin text-teal-600" />
+      <p className="font-bold">กำลังดึงข้อมูลล่าสุดจากเซิร์ฟเวอร์...</p>
+    </div>;
+  }
+
+  if (!member) return <div className="flex flex-col items-center justify-center min-h-[60vh] text-red-500 font-bold gap-4">
+    <AlertCircle className="w-12 h-12" />
+    <p>ไม่พบข้อมูลสมาชิกในระบบฐานข้อมูลปัจจุบัน</p>
+    <button onClick={() => window.location.reload()} className="bg-slate-800 text-white px-6 py-2 rounded-xl text-sm">ลองใหม่อีกครั้ง</button>
+  </div>;
 
   const totalDebt = (member.housingLoanBalance || 0) + (member.landLoanBalance || 0) + (member.generalLoanBalance || 0);
   
