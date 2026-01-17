@@ -89,7 +89,7 @@ export const Settings: React.FC = () => {
                 ตรวจสอบการ Deploy
               </p>
               <ul className="text-[10px] text-amber-700 space-y-2 list-disc ml-5 font-bold">
-                <li>ใน Apps Script กดปุ่ม <span className="text-amber-900">Deploy</span> > <span className="text-amber-900">New Deployment</span></li>
+                <li>ใน Apps Script กดปุ่ม <span className="text-amber-900">Deploy</span> &gt; <span className="text-amber-900">New Deployment</span></li>
                 <li>เลือก <span className="text-amber-900">Web App</span></li>
                 <li>ตั้งค่า <span className="text-amber-900">Who has access</span> เป็น <span className="font-black text-red-600 underline">"Anyone"</span></li>
               </ul>

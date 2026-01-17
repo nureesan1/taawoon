@@ -38,7 +38,7 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 const DEFAULT_CONFIG: AppConfig = {
   useGoogleSheets: true,
-  scriptUrl: '' 
+  scriptUrl: 'https://script.google.com/macros/s/AKfycbwfuHhUaAbJjSXQSWcIqwTy5y3FtFZfK2XKwnGLNx4Fy-rqYA5ecSQPXPnEkg3SDdp7sA/exec' 
 };
 
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
