@@ -13,15 +13,21 @@ function getSS() {
 }
 
 function doGet(e) {
-  if (e.parameter.action) {
-    return handleRequest(e);
+  try {
+    if (e.parameter.action) {
+      return handleRequest(e);
+    }
+    getSS();
+    return HtmlService.createHtmlOutput(
+      "<div style='font-family:sans-serif; text-align:center; padding:50px;'>" +
+      "<h2 style='color:#064e3b'>✅ Taawoon Cooperative API ONLINE</h2>" +
+      "<p>สถานะ: พร้อมใช้งาน (Ready)</p></div>"
+    );
+  } catch (e) {
+    return HtmlService.createHtmlOutput(
+      "<h2 style='color:red'>❌ ERROR: " + e.message + "</h2>"
+    );
   }
-  return HtmlService.createHtmlOutput(
-    "<div style='font-family:sans-serif; text-align:center; padding:50px;'>" +
-    "<h1 style='color:#064e3b'>✅ Taawoon API ONLINE</h1>" +
-    "<p>Linked Sheet: <b>" + TARGET_SHEET_ID + "</b></p>" +
-    "<p style='color:green'>Status: Ready for GET/POST</p></div>"
-  );
 }
 
 function doPost(e) {
@@ -32,7 +38,7 @@ function handleRequest(e) {
   try {
     const payload = parsePayload(e);
     const action = payload.action;
-    const data = payload.data || {};
+    const data = payload.data || payload;
 
     if (!action) return responseError("Missing action");
 
@@ -56,7 +62,7 @@ function handleRequest(e) {
         });
 
       case "addMember":
-        Members.appendRow(mapMemberToRow(data.member));
+        Members.appendRow(mapMember(data.member));
         return responseOK({ message: "Member added" });
 
       case "updateMember":
@@ -64,26 +70,28 @@ function handleRequest(e) {
         return responseOK({ message: "Member updated" });
 
       case "deleteMember":
-        deleteRowById(Members, data.id);
+        deleteById(Members, data.id);
         return responseOK({ message: "Member deleted" });
 
       case "addTransaction":
-        const tx = data.transaction;
-        Transactions.appendRow(mapTransactionToRow(tx));
+        const tx = data.transaction || data;
+        validateTx(tx);
+        Transactions.appendRow(mapTransaction(tx));
         updateBalances(Members, tx);
-        Ledger.appendRow(mapTransactionToLedgerRow(tx));
+        Ledger.appendRow(mapLedger(tx));
         return responseOK({ message: "Transaction saved" });
 
       case "deleteTransaction":
         revertBalances(Members, Transactions, data.id, data.memberId);
-        deleteRowById(Transactions, data.id);
-        deleteRowById(Ledger, "L-TX-" + data.id);
-        return responseOK({ message: "Transaction deleted" });
+        deleteById(Transactions, data.id);
+        deleteById(Ledger, "L-TX-" + data.id);
+        return responseOK({ message: "Transaction reverted & deleted" });
 
       default:
         return responseError("Unknown action: " + action);
     }
   } catch (err) {
+    console.error(err);
     return responseError(err.message);
   }
 }
@@ -91,37 +99,34 @@ function handleRequest(e) {
 /* ================= UTIL ================= */
 
 function parsePayload(e) {
-  // Handle GET parameters
+  if (e.postData && e.postData.contents) {
+    try {
+      return JSON.parse(e.postData.contents);
+    } catch (err) {
+      // Fallback for form-encoded
+    }
+  }
   if (e.parameter && e.parameter.action) {
     return {
       action: e.parameter.action,
       data: e.parameter.data ? JSON.parse(e.parameter.data) : {}
     };
   }
-  // Handle POST body
-  if (e.postData && e.postData.contents) {
-    // Check if it's form-encoded or raw JSON
-    try {
-      return JSON.parse(e.postData.contents);
-    } catch (err) {
-      // Fallback for application/x-www-form-urlencoded
-      return {
-        action: e.parameter.action,
-        data: e.parameter.data ? JSON.parse(e.parameter.data) : {}
-      };
-    }
-  }
-  throw new Error("Invalid request payload");
+  throw new Error("Invalid payload: " + JSON.stringify(e.parameter));
 }
 
 function responseOK(obj) {
-  return ContentService.createTextOutput(JSON.stringify({ status: "success", ...obj }))
-    .setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(JSON.stringify({
+    status: "success",
+    ...obj
+  })).setMimeType(ContentService.MimeType.JSON);
 }
 
 function responseError(msg) {
-  return ContentService.createTextOutput(JSON.stringify({ status: "error", message: msg }))
-    .setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(JSON.stringify({
+    status: "error",
+    message: msg
+  })).setMimeType(ContentService.MimeType.JSON);
 }
 
 function getSheet(ss, name) {
@@ -134,90 +139,112 @@ function formatDate(val) {
   return isNaN(d.getTime()) ? String(val) : Utilities.formatDate(d, "GMT+7", "yyyy-MM-dd");
 }
 
-/* ================= DATABASE LOGIC ================= */
+/* ================= INIT ================= */
 
 function initHeaders(m, t, l) {
-  m.clear().appendRow(["ID","Name","Code","IDCard","Phone","Address","Joined","Type","Shares","Savings","HousingDebt","LandDebt","GeneralDebt","Monthly","Missed"]);
-  t.clear().appendRow(["ID","MemberID","Date","Timestamp","Housing","Land","Shares","Savings","Welfare","Insurance","Donation","GeneralLoan","Other","Note","Total","Recorder","Method"]);
-  l.clear().appendRow(["ID","Date","Type","Category","Description","Amount","Method","Recorder","Note","Timestamp"]);
+  m.clear().appendRow([
+    "ID","Name","Code","IDCard","Phone","Address","Joined","Type",
+    "Shares","Savings","HousingDebt","LandDebt","GeneralDebt",
+    "Monthly","Missed"
+  ]);
+
+  t.clear().appendRow([
+    "ID","MemberID","Date","Timestamp","Housing","Land","Shares",
+    "Savings","Welfare","Insurance","Donation","GeneralLoan",
+    "Other","Note","Total","Recorder","Method"
+  ]);
+
+  l.clear().appendRow([
+    "ID","Date","Type","Category","Description","Amount",
+    "Method","Recorder","Note","Timestamp"
+  ]);
 }
 
-function getMembers(mSheet, tSheet) {
-  const mRows = mSheet.getDataRange().getValues();
-  const tRows = tSheet.getDataRange().getValues();
-  if (mRows.length < 2) return [];
+/* ================= MAPPERS ================= */
 
-  const txMap = {};
-  tRows.slice(1).forEach(r => {
-    const mid = String(r[1]);
-    if (!txMap[mid]) txMap[mid] = [];
-    txMap[mid].push({
-      id: String(r[0]), memberId: mid, date: formatDate(r[2]), timestamp: Number(r[3]),
-      housing: Number(r[4])||0, land: Number(r[5])||0, shares: Number(r[6])||0,
-      savings: Number(r[7])||0, welfare: Number(r[8])||0, insurance: Number(r[9])||0,
-      donation: Number(r[10])||0, generalLoan: Number(r[11])||0, totalAmount: Number(r[14])||0,
-      recordedBy: String(r[15]), paymentMethod: String(r[16])
-    });
-  });
-
-  return mRows.slice(1).map(r => ({
-    id: String(r[0]), name: String(r[1]), memberCode: String(r[2]),
-    personalInfo: { idCard: String(r[3]), phone: String(r[4]), address: String(r[5]) },
-    joinedDate: formatDate(r[6]), memberType: r[7],
-    accumulatedShares: Number(r[8])||0, savingsBalance: Number(r[9])||0,
-    housingLoanBalance: Number(r[10])||0, landLoanBalance: Number(r[11])||0,
-    generalLoanBalance: Number(r[12])||0, monthlyInstallment: Number(r[13])||0,
-    missedInstallments: Number(r[14])||0, transactions: txMap[String(r[0])] || []
-  }));
+function mapMember(m) {
+  return [
+    m.id, m.name, m.memberCode,
+    m.personalInfo?.idCard || "",
+    m.personalInfo?.phone || "",
+    m.personalInfo?.address || "",
+    m.joinedDate, m.memberType,
+    m.accumulatedShares || 0,
+    m.savingsBalance || 0,
+    m.housingLoanBalance || 0,
+    m.landLoanBalance || 0,
+    m.generalLoanBalance || 0,
+    m.monthlyInstallment || 0,
+    m.missedInstallments || 0
+  ];
 }
 
-function getLedger(lSheet) {
-  const rows = lSheet.getDataRange().getValues();
-  if (rows.length < 2) return [];
-  return rows.slice(1).map(r => ({
-    id: String(r[0]), date: formatDate(r[1]), type: String(r[2]),
-    category: String(r[3]), description: String(r[4]), amount: Number(r[5]),
-    paymentMethod: String(r[6]), recordedBy: String(r[7]), note: String(r[8]), timestamp: Number(r[9])
-  }));
+function mapTransaction(tx) {
+  return [
+    tx.id, tx.memberId, tx.date, tx.timestamp,
+    tx.housing||0, tx.land||0, tx.shares||0,
+    tx.savings||0, tx.welfare||0, tx.insurance||0,
+    tx.donation||0, tx.generalLoan||0,
+    0, "", tx.totalAmount, tx.recordedBy, tx.paymentMethod
+  ];
+}
+
+function mapLedger(tx) {
+  return [
+    "L-TX-" + tx.id, tx.date, "income",
+    "รับชำระ", "รับจากสมาชิก " + tx.memberId,
+    tx.totalAmount, tx.paymentMethod,
+    tx.recordedBy, "Auto", tx.timestamp
+  ];
+}
+
+/* ================= LOGIC ================= */
+
+function validateTx(tx) {
+  if (!tx || !tx.id || !tx.memberId) {
+    throw new Error("Transaction data incomplete");
+  }
 }
 
 function updateBalances(sheet, tx) {
   const rows = sheet.getDataRange().getValues();
-  for (let i = 1; i < rows.length; i++) {
+  for (let i=1; i<rows.length; i++) {
     if (String(rows[i][0]) === String(tx.memberId)) {
-      const r = i + 1;
-      sheet.getRange(r, 9).setValue((Number(rows[i][8])||0) + (tx.shares||0));
-      sheet.getRange(r, 10).setValue((Number(rows[i][9])||0) + (tx.savings||0));
-      sheet.getRange(r, 11).setValue(Math.max(0, (Number(rows[i][10])||0) - (tx.housing||0)));
-      sheet.getRange(r, 12).setValue(Math.max(0, (Number(rows[i][11])||0) - (tx.land||0)));
-      sheet.getRange(r, 13).setValue(Math.max(0, (Number(rows[i][12])||0) - (tx.generalLoan||0)));
+      const r = i+1;
+      sheet.getRange(r,9).setValue((Number(rows[i][8])||0) + (tx.shares||0));
+      sheet.getRange(r,10).setValue((Number(rows[i][9])||0) + (tx.savings||0));
+      sheet.getRange(r,11).setValue(Math.max(0, (Number(rows[i][10])||0) - (tx.housing||0)));
+      sheet.getRange(r,12).setValue(Math.max(0, (Number(rows[i][11])||0) - (tx.land||0)));
+      sheet.getRange(r,13).setValue(Math.max(0, (Number(rows[i][12])||0) - (tx.generalLoan||0)));
       break;
     }
   }
 }
 
 function revertBalances(mSheet, tSheet, txId, memberId) {
-  const tx = tSheet.getDataRange().getValues().find(r => String(r[0]) === String(txId));
-  if (!tx) return;
-  const mRows = mSheet.getDataRange().getValues();
-  for (let i = 1; i < mRows.length; i++) {
-    if (String(mRows[i][0]) === String(memberId)) {
-      const r = i + 1;
-      mSheet.getRange(r, 9).setValue((Number(mRows[i][8])||0) - (Number(tx[6])||0));
-      mSheet.getRange(r, 10).setValue((Number(mRows[i][9])||0) - (Number(tx[7])||0));
-      mSheet.getRange(r, 11).setValue((Number(mRows[i][10])||0) + (Number(tx[4])||0));
-      mSheet.getRange(r, 12).setValue((Number(mRows[i][11])||0) + (Number(tx[5])||0));
-      mSheet.getRange(r, 13).setValue((Number(mRows[i][12])||0) + (Number(tx[11])||0));
+  const tData = tSheet.getDataRange().getValues();
+  const t = tData.find(r => String(r[0]) === String(txId));
+  if (!t) return;
+
+  const m = mSheet.getDataRange().getValues();
+  for (let i=1; i<m.length; i++) {
+    if (String(m[i][0]) === String(memberId)) {
+      const r=i+1;
+      mSheet.getRange(r,9).setValue((Number(m[i][8])||0) - (Number(t[6])||0));
+      mSheet.getRange(r,10).setValue((Number(m[i][9])||0) - (Number(t[7])||0));
+      mSheet.getRange(r,11).setValue((Number(m[i][10])||0) + (Number(t[4])||0));
+      mSheet.getRange(r,12).setValue((Number(m[i][11])||0) + (Number(t[5])||0));
+      mSheet.getRange(r,13).setValue((Number(m[i][12])||0) + (Number(t[11])||0));
       break;
     }
   }
 }
 
-function deleteRowById(sheet, id) {
-  const data = sheet.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]) === String(id)) {
-      sheet.deleteRow(i + 1);
+function deleteById(sheet, id) {
+  const rows = sheet.getDataRange().getValues();
+  for (let i=1; i<rows.length; i++) {
+    if (String(rows[i][0]) === String(id)) {
+      sheet.deleteRow(i+1);
       break;
     }
   }
@@ -247,14 +274,71 @@ function updateMemberInSheet(sheet, id, data) {
   }
 }
 
-function mapMemberToRow(m) {
-  return [m.id, m.name, m.memberCode, m.personalInfo?.idCard||"", m.personalInfo?.phone||"", m.personalInfo?.address||"", m.joinedDate||"", m.memberType||"ordinary", m.accumulatedShares||0, m.savingsBalance||0, m.housingLoanBalance||0, m.landLoanBalance||0, m.generalLoanBalance||0, m.monthlyInstallment||0, m.missedInstallments||0];
+/* ================= READ ================= */
+
+function getMembers(mSheet, tSheet) {
+  const m = mSheet.getDataRange().getValues();
+  const t = tSheet.getDataRange().getValues();
+  if (m.length < 2) return [];
+
+  const txMap = {};
+  t.slice(1).forEach(r => {
+    const mid = String(r[1]);
+    if(!txMap[mid]) txMap[mid]=[];
+    txMap[mid].push({
+      id: String(r[0]),
+      memberId: mid,
+      date: formatDate(r[2]),
+      timestamp: Number(r[3]),
+      housing: Number(r[4])||0,
+      land: Number(r[5])||0,
+      shares: Number(r[6])||0,
+      savings: Number(r[7])||0,
+      welfare: Number(r[8])||0,
+      insurance: Number(r[9])||0,
+      donation: Number(r[10])||0,
+      generalLoan: Number(r[11])||0,
+      totalAmount: Number(r[14])||0,
+      recordedBy: String(r[15]),
+      paymentMethod: String(r[16])
+    });
+  });
+
+  return m.slice(1).map(r => ({
+    id: String(r[0]),
+    name: String(r[1]),
+    memberCode: String(r[2]),
+    personalInfo: {
+      idCard: String(r[3]),
+      phone: String(r[4]),
+      address: String(r[5])
+    },
+    joinedDate: formatDate(r[6]),
+    memberType: r[7],
+    accumulatedShares: Number(r[8])||0,
+    savingsBalance: Number(r[9])||0,
+    housingLoanBalance: Number(r[10])||0,
+    landLoanBalance: Number(r[11])||0,
+    generalLoanBalance: Number(r[12])||0,
+    monthlyInstallment: Number(r[13])||0,
+    missedInstallments: Number(r[14])||0,
+    transactions: txMap[String(r[0])] || []
+  }));
 }
 
-function mapTransactionToRow(tx) {
-  return [tx.id, tx.memberId, tx.date, tx.timestamp, tx.housing||0, tx.land||0, tx.shares||0, tx.savings||0, tx.welfare||0, tx.insurance||0, tx.donation||0, tx.generalLoan||0, 0, "", tx.totalAmount, tx.recordedBy, tx.paymentMethod];
-}
-
-function mapTransactionToLedgerRow(tx) {
-  return ["L-TX-"+tx.id, tx.date, "income", "รับชำระเงินสมาชิก", "รับชำระจาก " + tx.memberId, tx.totalAmount, tx.paymentMethod, tx.recordedBy, "Auto", tx.timestamp];
+function getLedger(lSheet) {
+  const rows = lSheet.getDataRange().getValues();
+  if (rows.length < 2) return [];
+  return rows.slice(1).map(r => ({
+    id: String(r[0]),
+    date: formatDate(r[1]),
+    type: String(r[2]),
+    category: String(r[3]),
+    description: String(r[4]),
+    amount: Number(r[5]),
+    paymentMethod: String(r[6]),
+    recordedBy: String(r[7]),
+    note: String(r[8]),
+    timestamp: Number(r[9])
+  }));
 }
