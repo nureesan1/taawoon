@@ -1,7 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useCallback, useEffect } from 'react';
 import { Member, Transaction, UserRole, AppConfig, LedgerTransaction } from '../types';
-import { MOCK_MEMBERS } from '../constants';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 
 type AppView = 'dashboard' | 'register_member' | 'member_management' | 'member_profile' | 'settings' | 'record_payment' | 'accounting' | 'payment_history' | 'billing';
@@ -39,7 +38,7 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 const DEFAULT_CONFIG: AppConfig = {
   useGoogleSheets: true,
-  scriptUrl: 'https://script.google.com/macros/s/AKfycbzAHHCJP5mIJLcxXCzI4FjDWkn4eTeNk4IhMVZpqri2QZgCbxpLUK3p_yx-vkaYbrJT/exec'
+  scriptUrl: '' 
 };
 
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -61,96 +60,74 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [loadingMessage, setLoadingMessage] = useState<string | undefined>();
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
 
-  const callApi = async (action: string, payload: any = {}, retries = 3): Promise<any> => {
+  const callApi = async (action: string, payload: any = {}, retries = 2): Promise<any> => {
     const url = config.scriptUrl.trim();
-    if (!url) throw new Error("กรุณาระบุ URL ในหน้าตั้งค่า");
+    if (!url) throw new Error("ยังไม่ได้ระบุ Web App URL ในหน้าตั้งค่า");
     
-    if (!url.startsWith('https://script.google.com')) {
-      throw new Error("URL ไม่ถูกต้อง ต้องขึ้นต้นด้วย https://script.google.com");
-    }
-
+    // สำหรับการอ่านข้อมูล ใช้ GET เพื่อลดปัญหา CORS
+    const isReadAction = action === 'getData' || action === 'ping';
+    
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
 
     try {
-      if (retries < 3) {
-        setLoadingMessage(`กำลังลองใหม่... (${3 - retries}/3)`);
+      let response;
+      if (isReadAction) {
+        const getUrl = new URL(url);
+        getUrl.searchParams.append('action', action);
+        getUrl.searchParams.append('data', JSON.stringify(payload));
+        
+        response = await fetch(getUrl.toString(), {
+          method: 'GET',
+          redirect: 'follow',
+          signal: controller.signal
+        });
+      } else {
+        // สำหรับการเขียนข้อมูล ใช้ POST แบบ Form-Encoded ซึ่งเสถียรที่สุดสำหรับ GAS
+        const body = new URLSearchParams();
+        body.append('action', action);
+        body.append('data', JSON.stringify(payload));
+
+        response = await fetch(url, {
+          method: 'POST',
+          mode: 'cors',
+          redirect: 'follow',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body,
+          signal: controller.signal
+        });
       }
-
-      const params = new URLSearchParams();
-      params.append('action', action);
-      params.append('data', JSON.stringify(payload));
-
-      const response = await fetch(url, {
-        method: 'POST',
-        mode: 'cors',
-        cache: 'no-cache',
-        redirect: 'follow', // Critical for GAS
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: params,
-        signal: controller.signal
-      });
 
       clearTimeout(timeoutId);
 
-      if (!response.ok) throw new Error(`HTTP Error: ${response.status} ${response.statusText}`);
+      if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
       
       const text = await response.text();
-      
-      if (text.trim().startsWith('<')) {
-        if (text.includes('Google Account')) {
-          throw new Error("การเข้าถึงถูกปฏิเสธ: โปรดตั้งค่า Deployment เป็น 'Anyone' (ทุกคน)");
-        }
-        throw new Error("การตอบกลับไม่ถูกต้อง: เซิร์ฟเวอร์ส่ง HTML แทน JSON (ตรวจสอบความถูกต้องของ URL)");
-      }
-
       try {
         const data = JSON.parse(text);
         if (data.status === 'error') throw new Error(data.message);
         return data;
-      } catch (parseError) {
-        console.error("Parse Error Raw Text:", text);
-        throw new Error("ไม่สามารถประมวลผลข้อมูล JSON ได้");
+      } catch (e) {
+        if (text.includes('Google Account')) throw new Error("กรุณาตั้งค่า Deployment เป็น 'Anyone'");
+        throw new Error("เซิร์ฟเวอร์ส่งข้อมูลกลับไม่ถูกต้อง (ตรวจสอบ URL)");
       }
     } catch (e: any) {
       clearTimeout(timeoutId);
-      
-      const isNetworkError = 
-        e.name === 'AbortError' || 
-        e.message.toLowerCase().includes('fetch') || 
-        e.message.toLowerCase().includes('load failed') || 
-        e.message.toLowerCase().includes('networkerror');
-
-      if (retries > 0 && isNetworkError) {
-        const backoff = (4 - retries) * 1000;
-        await new Promise(r => setTimeout(r, backoff));
+      if (retries > 0 && (e.name === 'AbortError' || e.message.includes('failed'))) {
+        await new Promise(r => setTimeout(r, 1000));
         return callApi(action, payload, retries - 1);
       }
-
-      if (e.name === 'AbortError') throw new Error("การเชื่อมต่อหมดเวลา (Timeout) กรุณาตรวจสอบอินเทอร์เน็ต");
-      
-      if (e.message.toLowerCase().includes('load failed') || e.message.toLowerCase().includes('failed to fetch')) {
-        throw new Error("การเชื่อมต่อล้มเหลว (Load failed): โปรดตรวจสอบว่า URL ถูกต้องและ Google Apps Script ถูกตั้งค่าเป็น Public (Anyone)");
-      }
-      
       throw e;
     }
   };
 
   const refreshData = useCallback(async () => {
-    const url = config.scriptUrl.trim();
-    if (!config.useGoogleSheets || !url || url.includes('YOUR_URL_HERE')) {
-      setMembers([]);
-      setLedger([]); 
+    if (!config.scriptUrl.trim()) {
       setConnectionStatus('disconnected');
-      setErrorMessage("กรุณาระบุ Web App URL ในหน้าตั้งค่า");
       return;
     }
-    
     setIsLoading(true);
-    setLoadingMessage("กำลังโหลดข้อมูลจาก Google Sheets...");
+    setLoadingMessage("กำลังโหลดข้อมูล...");
     setErrorMessage(null);
     try {
       const data = await callApi('getData');
@@ -160,53 +137,16 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setConnectionStatus('connected');
       }
     } catch (error: any) {
-      console.error("Refresh Data Failed:", error);
       setConnectionStatus('disconnected');
       setErrorMessage(error.message);
-      // No more fallback to mock data
       setMembers([]);
-      setLedger([]);
     } finally {
       setIsLoading(false);
       setLoadingMessage(undefined);
     }
-  }, [config]);
+  }, [config.scriptUrl]);
 
   useEffect(() => { refreshData(); }, [refreshData]);
-
-  const addLedgerItem = async (item: Omit<LedgerTransaction, 'id' | 'timestamp'>) => {
-    setIsLoading(true);
-    setLoadingMessage("กำลังบันทึกรายการบัญชี...");
-    try {
-      await callApi('addLedgerItem', { 
-        item: { ...item, id: 'L' + Date.now(), timestamp: Date.now() } 
-      });
-      await refreshData();
-      return true;
-    } catch (e: any) {
-      alert('บันทึกบัญชีไม่สำเร็จ: ' + e.message);
-      return false;
-    } finally {
-      setIsLoading(false);
-      setLoadingMessage(undefined);
-    }
-  };
-
-  const deleteLedgerItem = async (id: string) => {
-    setIsLoading(true);
-    setLoadingMessage("กำลังลบรายการ...");
-    try {
-      await callApi('deleteLedgerItem', { id });
-      await refreshData();
-      return true;
-    } catch (e: any) {
-      alert('ลบรายการไม่สำเร็จ: ' + e.message);
-      return false;
-    } finally {
-      setIsLoading(false);
-      setLoadingMessage(undefined);
-    }
-  };
 
   const login = (role: UserRole, id?: string) => {
     if (role === UserRole.STAFF) setCurrentUser({ role, name: 'ผู้ดูแลระบบ' });
@@ -224,114 +164,85 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     localStorage.setItem('app_config', JSON.stringify(newConfig));
   };
 
-  const resetConfig = () => {
-    setConfig(DEFAULT_CONFIG);
-    localStorage.removeItem('app_config');
-  };
-
-  const addTransaction = async (tx: any) => {
-    setIsLoading(true);
-    setLoadingMessage("กำลังบันทึกการชำระเงิน...");
-    try {
-      await callApi('addTransaction', { transaction: { ...tx, id: 'T'+Date.now(), timestamp: Date.now() } });
-      await refreshData();
-      return true;
-    } catch (e: any) {
-      alert('บันทึกไม่สำเร็จ: ' + e.message);
-      return false;
-    } finally {
-      setIsLoading(false);
-      setLoadingMessage(undefined);
-    }
-  };
-
-  const deleteTransaction = async (id: string, memberId: string) => {
-    setIsLoading(true);
-    setLoadingMessage("กำลังลบรายการและคืนยอดหนี้...");
-    try {
-      await callApi('deleteTransaction', { id, memberId });
-      await refreshData();
-      return true;
-    } catch (e: any) {
-      alert('ลบรายการไม่สำเร็จ: ' + e.message);
-      return false;
-    } finally {
-      setIsLoading(false);
-      setLoadingMessage(undefined);
-    }
-  };
-
   return (
     <StoreContext.Provider value={{
       members, ledger, currentUser, currentView, config, isLoading, loadingMessage, connectionStatus, errorMessage,
-      login, logout, addTransaction, deleteTransaction, getMember: (id) => members.find(m => m.id === id),
-      setView: setCurrentView, updateConfig, resetConfig, refreshData,
+      login, logout, 
+      addTransaction: async (tx) => {
+        setIsLoading(true);
+        try {
+          await callApi('addTransaction', { transaction: { ...tx, id: 'T'+Date.now(), timestamp: Date.now() } });
+          await refreshData();
+          return true;
+        } catch (e: any) { alert(e.message); return false; }
+        finally { setIsLoading(false); }
+      },
+      deleteTransaction: async (id, mId) => {
+        setIsLoading(true);
+        try {
+          await callApi('deleteTransaction', { id, memberId: mId });
+          await refreshData();
+          return true;
+        } catch (e: any) { alert(e.message); return false; }
+        finally { setIsLoading(false); }
+      },
+      getMember: (id) => members.find(m => m.id === id),
+      setView: setCurrentView, updateConfig, resetConfig: () => { setConfig(DEFAULT_CONFIG); localStorage.removeItem('app_config'); }, refreshData,
       addMember: async (m) => { 
         setIsLoading(true);
-        setLoadingMessage("กำลังบันทึกข้อมูลสมาชิก...");
-        try {
-          await callApi('addMember', { member: m }); 
-          refreshData(); 
-          return true; 
-        } catch(e: any) {
-          alert('ไม่สามารถเพิ่มสมาชิกได้: ' + e.message);
-          return false;
-        } finally {
-          setIsLoading(false);
-          setLoadingMessage(undefined);
-        }
+        try { await callApi('addMember', { member: m }); await refreshData(); return true; } 
+        catch(e: any) { alert(e.message); return false; } 
+        finally { setIsLoading(false); }
       },
       updateMember: async (id, d) => { 
         setIsLoading(true);
-        try {
-          await callApi('updateMember', { id, data: d }); 
-          refreshData(); 
-          return true; 
-        } catch(e: any) {
-          alert('ไม่สามารถอัปเดตสมาชิกได้: ' + e.message);
-          return false;
-        } finally {
-          setIsLoading(false);
-        }
+        try { await callApi('updateMember', { id, data: d }); await refreshData(); return true; } 
+        catch(e: any) { alert(e.message); return false; } 
+        finally { setIsLoading(false); }
       },
       deleteMember: async (id) => { 
         setIsLoading(true);
-        try {
-          await callApi('deleteMember', { id }); 
-          refreshData(); 
-          return true; 
-        } catch(e: any) {
-          alert('ไม่สามารถลบสมาชิกได้: ' + e.message);
-          return false;
-        } finally {
-          setIsLoading(false);
-        }
+        try { await callApi('deleteMember', { id }); await refreshData(); return true; } 
+        catch(e: any) { alert(e.message); return false; } 
+        finally { setIsLoading(false); }
       },
-      addLedgerItem, deleteLedgerItem, updateLedgerItem: async (id, d) => true,
+      addLedgerItem: async (item) => {
+        setIsLoading(true);
+        try {
+          await callApi('addLedgerItem', { item: { ...item, id: 'L' + Date.now(), timestamp: Date.now() } });
+          await refreshData();
+          return true;
+        } catch (e: any) { alert(e.message); return false; }
+        finally { setIsLoading(false); }
+      },
+      deleteLedgerItem: async (id) => {
+        setIsLoading(true);
+        try {
+          await callApi('deleteLedgerItem', { id });
+          await refreshData();
+          return true;
+        } catch (e: any) { alert(e.message); return false; }
+        finally { setIsLoading(false); }
+      },
+      updateLedgerItem: async () => true,
       initDatabase: async () => { 
         setIsLoading(true); 
-        setLoadingMessage("กำลังตั้งค่าฐานข้อมูล...");
-        try { await callApi('initDatabase'); alert('เริ่มต้นฐานข้อมูลสำเร็จ'); refreshData(); } 
+        try { await callApi('initDatabase'); alert('ตั้งค่าหัวตารางสำเร็จ'); await refreshData(); } 
         catch (e: any) { alert(e.message); } 
-        finally { setIsLoading(false); setLoadingMessage(undefined); } 
+        finally { setIsLoading(false); } 
       }, 
       testConnection: async () => {
         setIsLoading(true);
-        setLoadingMessage("กำลังทดสอบการเชื่อมต่อ...");
         try { 
           await callApi('ping'); 
           setConnectionStatus('connected'); 
           setErrorMessage(null);
           return true; 
-        } 
-        catch (e: any) { 
+        } catch (e: any) { 
           setConnectionStatus('disconnected'); 
           setErrorMessage(e.message); 
           return false; 
-        } finally {
-          setIsLoading(false);
-          setLoadingMessage(undefined);
-        }
+        } finally { setIsLoading(false); }
       }
     }}>
       {isLoading && <LoadingOverlay message={loadingMessage} />}
