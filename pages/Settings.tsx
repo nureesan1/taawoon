@@ -4,7 +4,7 @@ import { useStore } from '../context/StoreContext';
 import { 
   Save, Database, RotateCcw, Link, Link2Off, Loader2, 
   Globe, Trash2, AlertCircle, HelpCircle, CheckCircle2, 
-  ExternalLink, Info
+  ExternalLink, Info, MessageCircle, Copy
 } from 'lucide-react';
 
 export const Settings: React.FC = () => {
@@ -12,6 +12,7 @@ export const Settings: React.FC = () => {
   const [formData, setFormData] = useState(config);
   const [isSaved, setIsSaved] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   const TARGET_SHEET_ID = "1YJQaoc3vP_5wrLscsbB-OwX_35RtjawxxcbCtcno9_o";
 
@@ -20,6 +21,12 @@ export const Settings: React.FC = () => {
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 2000);
     refreshData();
+  };
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(formData.scriptUrl);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
   };
 
   const handleHardReset = () => {
@@ -70,44 +77,50 @@ export const Settings: React.FC = () => {
         </div>
       </div>
 
-      {/* Troubleshooting "Load failed" Section */}
-      <div className="bg-amber-50 border border-amber-200 rounded-[2.5rem] p-8 space-y-4">
-        <div className="flex items-start gap-4">
-          <div className="p-3 bg-amber-100 rounded-2xl text-amber-600">
-            <HelpCircle className="w-6 h-6" />
+      {/* LINE Integration Card */}
+      <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-8 space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="bg-emerald-50 p-3 rounded-2xl text-emerald-600">
+            <MessageCircle className="w-6 h-6" />
           </div>
-          <div className="space-y-1">
-            <h3 className="font-black text-amber-900 uppercase text-sm tracking-widest">วิธีแก้ปัญหา "Load failed" (CORS Error)</h3>
-            <p className="text-xs text-amber-700 font-bold leading-relaxed">หากแอปแสดงข้อผิดพลาด "Load failed" โปรดทำตามขั้นตอนดังนี้:</p>
+          <div>
+            <h3 className="font-black text-slate-800 uppercase text-sm tracking-widest">LINE Messaging API (Webhook)</h3>
+            <p className="text-[10px] text-slate-400 font-bold">ใช้ Webhook URL นี้ไปตั้งค่าใน LINE Developers เพื่อเปิดระบบเช็คยอดหนี้ผ่าน LINE</p>
           </div>
         </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-           <div className="bg-white/60 p-5 rounded-2xl border border-amber-100">
-              <p className="text-amber-900 font-black text-xs mb-3 flex items-center gap-2">
-                <span className="w-5 h-5 bg-amber-200 rounded-full flex items-center justify-center text-[10px]">1</span>
-                ตรวจสอบการ Deploy
-              </p>
-              <ul className="text-[10px] text-amber-700 space-y-2 list-disc ml-5 font-bold">
-                <li>ใน Apps Script กดปุ่ม <span className="text-amber-900">Deploy</span> &gt; <span className="text-amber-900">New Deployment</span></li>
-                <li>เลือก <span className="text-amber-900">Web App</span></li>
-                <li>ตั้งค่า <span className="text-amber-900">Who has access</span> เป็น <span className="font-black text-red-600 underline">"Anyone"</span></li>
-              </ul>
-           </div>
-           <div className="bg-white/60 p-5 rounded-2xl border border-amber-100">
-              <p className="text-amber-900 font-black text-xs mb-3 flex items-center gap-2">
-                <span className="w-5 h-5 bg-amber-200 rounded-full flex items-center justify-center text-[10px]">2</span>
-                อัปเดต URL ล่าสุด
-              </p>
-              <ul className="text-[10px] text-amber-700 space-y-2 list-disc ml-5 font-bold">
-                <li>คัดลอก <span className="text-amber-900">Web App URL</span> (ลงท้ายด้วย /exec)</li>
-                <li>นำมาวางในช่อง <span className="text-amber-900">Script URL</span> ด้านล่างนี้</li>
-                <li>กด <span className="text-amber-900">บันทึกการตั้งค่า</span> แล้วกด <span className="text-amber-900">ทดสอบ</span></li>
-              </ul>
-           </div>
+
+        <div className="space-y-4">
+          <div className="p-5 bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Webhook URL สำหรับ LINE</span>
+              <button 
+                onClick={copyToClipboard}
+                className="flex items-center gap-1.5 text-xs font-black text-teal-600 bg-teal-50 px-3 py-1.5 rounded-full hover:bg-teal-100 transition-all"
+              >
+                {isCopied ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {isCopied ? 'คัดลอกแล้ว' : 'คัดลอก URL'}
+              </button>
+            </div>
+            <p className="text-[11px] font-mono text-slate-600 break-all bg-white p-3 rounded-xl border border-slate-100 shadow-inner">
+              {formData.scriptUrl}
+            </p>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-100 p-6 rounded-3xl space-y-3">
+            <p className="text-blue-900 font-black text-xs flex items-center gap-2 uppercase tracking-widest">
+              <HelpCircle className="w-4 h-4" /> ขั้นตอนการเชื่อมต่อ LINE Bot
+            </p>
+            <ol className="text-[10px] text-blue-700 space-y-2 list-decimal ml-5 font-bold">
+              <li>สร้าง Provider และ Channel ใน <span className="text-blue-900 underline">LINE Developers Console</span></li>
+              <li>ไปที่เมนู <span className="text-blue-900">Messaging API</span> แล้วคัดลอก <span className="text-blue-900">Channel Access Token</span></li>
+              <li>นำโทเคนไปใส่ในโค้ด Apps Script ที่ตัวแปร <span className="font-mono bg-blue-100 px-1">LINE_ACCESS_TOKEN</span> แล้วกดบันทึกและ Deploy ใหม่</li>
+              <li>คัดลอก Webhook URL ด้านบนไปวางในช่อง <span className="text-blue-900">Webhook URL</span> ของ LINE และกด <span className="text-blue-900">Verify</span> และ <span className="text-blue-900 font-black">เปิด Use Webhook</span></li>
+            </ol>
+          </div>
         </div>
       </div>
 
+      {/* API Config Card */}
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-8 space-y-6">
         <div className="space-y-4">
           <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-2">
@@ -139,16 +152,6 @@ export const Settings: React.FC = () => {
               {isTesting ? <Loader2 className="w-6 h-6 animate-spin" /> : 'ทดสอบการเชื่อมต่อ'}
            </button>
         </div>
-        
-        {errorMessage && (
-          <div className="p-5 bg-red-50 border border-red-100 rounded-2xl flex items-start gap-3 animate-in slide-in-from-top-2">
-            <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <p className="text-xs font-black text-red-800 uppercase">ข้อผิดพลาดที่พบ:</p>
-              <p className="text-[11px] text-red-600 font-bold leading-relaxed">{errorMessage}</p>
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

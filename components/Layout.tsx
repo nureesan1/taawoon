@@ -3,7 +3,7 @@ import React from 'react';
 import { useStore } from '../context/StoreContext';
 import { 
   LogOut, LayoutDashboard, UserCircle, Settings as SettingsIcon, 
-  Banknote, Users, BookOpen, History, FileText
+  Banknote, Users, BookOpen, History, FileText, PieChart
 } from 'lucide-react';
 import { UserRole } from '../types';
 
@@ -16,6 +16,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const navItems = [
     { id: 'dashboard', label: 'แดชบอร์ด', icon: LayoutDashboard, roles: [UserRole.MEMBER, UserRole.STAFF] },
+    { id: 'daily_summary', label: 'สรุปยอดรายวัน', icon: PieChart, roles: [UserRole.STAFF] },
     { id: 'billing', label: 'ใบแจ้งหนี้', icon: FileText, roles: [UserRole.STAFF] },
     { id: 'payment_history', label: 'ประวัติการชำระเงิน', icon: History, roles: [UserRole.MEMBER, UserRole.STAFF] },
     { id: 'member_profile', label: 'ข้อมูลส่วนตัว', icon: UserCircle, roles: [UserRole.MEMBER] },
@@ -69,9 +70,20 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </aside>
 
+      {/* Mobile Header */}
+      <div className="md:hidden bg-[#064e3b] text-white p-4 flex items-center justify-between sticky top-0 z-40">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-teal-500 rounded-lg flex items-center justify-center font-bold">T</div>
+          <span className="font-bold">ระบบตรวจสอบหนี้ตะอาวุน</span>
+        </div>
+        <button onClick={logout} className="p-2 bg-teal-900 rounded-lg">
+           <LogOut className="w-5 h-5" />
+        </button>
+      </div>
+
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-h-screen">
-        <header className="bg-white shadow-sm border-b border-slate-100 px-6 py-4 flex items-center justify-between sticky top-0 z-20">
+        <header className="bg-white shadow-sm border-b border-slate-100 px-6 py-4 flex items-center justify-between sticky top-0 z-20 hidden md:flex">
           <h2 className="text-xl font-black text-slate-800">
             {navItems.find(n => n.id === currentView)?.label}
           </h2>
@@ -79,6 +91,20 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             {new Date().toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}
           </div>
         </header>
+
+        {/* Mobile Nav Scroller */}
+        <div className="md:hidden bg-white border-b border-slate-100 sticky top-14 z-20 flex overflow-x-auto no-scrollbar gap-2 px-4 py-3">
+          {filteredNav.map((item) => (
+             <button 
+                key={item.id}
+                onClick={() => setView(item.id as any)}
+                className={`whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold transition-all ${currentView === item.id ? 'bg-teal-600 text-white' : 'bg-slate-50 text-slate-400 border border-slate-100'}`}
+             >
+                {item.label}
+             </button>
+          ))}
+        </div>
+
         <main className="p-4 md:p-8 max-w-7xl mx-auto w-full">
           {children}
         </main>

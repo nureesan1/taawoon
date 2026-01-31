@@ -1,5 +1,7 @@
 {
-  "name": "Taawoon Cooperative System",
-  "description": "A financial tracking system for the Ta-Awun Housing Cooperative, featuring member dashboards and staff management tools.",
-  "requestFramePermissions": []
+  "name": "ระบบตรวจสอบหนี้ของสมาชิก สหกรณ์ตะอาวุน",
+  "description": "ระบบตรวจสอบหนี้สิน เงินออม และทุนเรือนหุ้น สำหรับสมาชิกสหกรณ์เคหสถานบ้านมั่นคงชุมชนตะอาวุน จำกัด",
+  "requestFramePermissions": [
+    "camera"
+  ]
 }

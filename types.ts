@@ -8,6 +8,18 @@ export enum UserRole {
 export type TransactionType = 'income' | 'expense';
 export type PaymentMethod = 'cash' | 'transfer';
 
+export type AppView = 
+  | 'dashboard' 
+  | 'register_member' 
+  | 'member_management' 
+  | 'member_profile' 
+  | 'settings' 
+  | 'record_payment' 
+  | 'accounting' 
+  | 'payment_history' 
+  | 'billing' 
+  | 'daily_summary';
+
 export interface LedgerTransaction {
   id: string;
   date: string;

@@ -13,6 +13,7 @@ import { MemberManagement } from './pages/MemberManagement';
 import { FinancialTracker } from './pages/FinancialTracker';
 import { PaymentHistory } from './pages/PaymentHistory';
 import { Billing } from './pages/Billing';
+import { DailySummary } from './pages/DailySummary';
 import { UserRole } from './types';
 
 const AppContent: React.FC = () => {
@@ -31,6 +32,7 @@ const AppContent: React.FC = () => {
       
       {/* Staff Views */}
       {currentUser.role === UserRole.STAFF && currentView === 'dashboard' && <StaffDashboard />}
+      {currentUser.role === UserRole.STAFF && currentView === 'daily_summary' && <DailySummary />}
       {currentUser.role === UserRole.STAFF && currentView === 'payment_history' && <PaymentHistory />}
       {currentUser.role === UserRole.STAFF && currentView === 'register_member' && <RegisterMember />}
       {currentUser.role === UserRole.STAFF && currentView === 'record_payment' && <RecordPayment />}
