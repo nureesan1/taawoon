@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useStore } from '../context/StoreContext';
 import { 
   Search, History, Calendar, Banknote, Landmark, Clock, 
-  Trash2, Download, FileText, AlertTriangle
+  Trash2, Download, FileText, AlertTriangle, Filter
 } from 'lucide-react';
 import { UserRole } from '../types';
 
@@ -28,6 +28,7 @@ export const PaymentHistory: React.FC = () => {
       txs = txs.filter(tx => tx.memberId === currentUser.memberId);
     }
 
+    // Sort by timestamp descending (Newest first) as requested "Order by date"
     return txs.sort((a, b) => b.timestamp - a.timestamp);
   }, [members, currentUser]);
 
@@ -51,93 +52,79 @@ export const PaymentHistory: React.FC = () => {
     }
   };
 
-  const formatTHB = (num: number) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(num);
+  const formatTHB = (num: number) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 0 }).format(num);
+
+  const formatThaiDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const months = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543 - 2500}`;
+  };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-fade-in">
       
-      {/* Header & Stats Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="md:col-span-2 bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex items-center gap-4">
-          <div className="p-4 bg-teal-50 rounded-2xl text-teal-600">
-            <History className="w-8 h-8" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-black text-slate-800 tracking-tight">ประวัติการเงิน</h2>
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Payment Transaction Logs</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm text-center">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">จำนวนรายการ</p>
-          <p className="text-2xl font-black text-slate-800">{filteredTransactions.length}</p>
-        </div>
-        <div className="bg-[#064e3b] rounded-3xl p-6 text-white shadow-lg text-center">
-          <p className="text-[10px] font-black text-teal-300 uppercase tracking-widest mb-1">ยอดรวมทั้งหมด</p>
-          <p className="text-2xl font-black">
-            {formatTHB(filteredTransactions.reduce((sum, tx) => sum + tx.totalAmount, 0))}
-          </p>
+      {/* Header & Date Display */}
+      <div className="flex justify-between items-center mb-2">
+        <h2 className="text-xl font-bold text-slate-800">ประวัติการชำระเงิน</h2>
+        <div className="bg-white px-4 py-1 rounded-full border border-slate-200 text-xs font-bold text-slate-500 shadow-sm">
+          {new Date().toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}
         </div>
       </div>
 
-      {/* Search & Filters */}
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4 items-center">
-        {currentUser?.role === UserRole.STAFF && (
-          <div className="relative w-full md:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="ค้นหาสมาชิก..." 
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-teal-500 font-bold text-sm"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        )}
+      {/* Filter Bar - Matches Screenshot style */}
+      <div className="bg-slate-100/50 p-6 rounded-[2rem] border border-slate-200 flex flex-col md:flex-row gap-4 items-center shadow-sm">
+        <div className="relative flex-1 w-full">
+          <input 
+            type="text" 
+            placeholder="ค้นหาสมาชิก..." 
+            className="w-full pl-6 pr-4 py-3 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-teal-500 font-bold text-sm shadow-inner"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
         <div className="flex flex-1 gap-2 w-full">
           <div className="relative flex-1">
-             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
              <input 
               type="date" 
-              className="w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-xs font-bold"
+              className="w-full px-6 py-3 bg-white border border-slate-200 rounded-2xl outline-none text-xs font-bold shadow-inner"
               value={dateFilter.start}
               onChange={(e) => setDateFilter({...dateFilter, start: e.target.value})}
              />
           </div>
-          <div className="flex items-center text-slate-300 text-xs font-black px-2">TO</div>
+          <div className="flex items-center text-slate-400 text-[10px] font-black px-1">TO</div>
           <div className="relative flex-1">
-             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
              <input 
               type="date" 
-              className="w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-xs font-bold"
+              className="w-full px-6 py-3 bg-white border border-slate-200 rounded-2xl outline-none text-xs font-bold shadow-inner"
               value={dateFilter.end}
               onChange={(e) => setDateFilter({...dateFilter, end: e.target.value})}
              />
           </div>
         </div>
-        <button className="p-3 bg-slate-50 text-slate-400 hover:text-teal-600 rounded-xl transition-all border border-slate-100">
+        <button className="p-3 bg-white text-slate-400 hover:text-teal-600 rounded-2xl transition-all border border-slate-200 shadow-sm">
           <Download className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Transaction List */}
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
+      {/* Transaction Table */}
+      <div className="bg-white rounded-[2rem] shadow-sm border-2 border-blue-400/30 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50/50 text-slate-400 font-black uppercase text-[10px] tracking-widest">
+            <thead className="bg-slate-50 text-slate-400 font-bold uppercase text-[11px] tracking-wider">
               <tr>
-                <th className="px-8 py-5">วันที่ / เวลา</th>
-                {currentUser?.role === UserRole.STAFF && <th className="px-8 py-5">สมาชิก</th>}
-                <th className="px-8 py-5">รายละเอียด</th>
-                <th className="px-8 py-5">วิธีชำระ</th>
-                <th className="px-8 py-5 text-right">ยอดชำระ</th>
-                {currentUser?.role === UserRole.STAFF && <th className="px-8 py-5 text-center">จัดการ</th>}
+                <th className="px-8 py-6">วันที่ / เวลา</th>
+                {currentUser?.role === UserRole.STAFF && <th className="px-8 py-6">สมาชิก</th>}
+                <th className="px-8 py-6">รายละเอียด</th>
+                <th className="px-8 py-6">วิธีชำระ</th>
+                <th className="px-8 py-6 text-right">ยอดชำระ</th>
+                {currentUser?.role === UserRole.STAFF && <th className="px-8 py-6 text-center">จัดการ</th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-slate-100">
               {filteredTransactions.map(tx => {
                 const breakdown = [];
                 if (tx.housing > 0) breakdown.push('บ้าน');
-                if (tx.land > 0) breakdown.push('ดิน');
+                if (tx.land > 0) breakdown.push('ที่ดิน');
                 if (tx.shares > 0) breakdown.push('หุ้น');
                 if (tx.savings > 0) breakdown.push('ออม');
                 if (tx.welfare > 0) breakdown.push('สวัสดิการ');
@@ -146,50 +133,53 @@ export const PaymentHistory: React.FC = () => {
                 if (tx.donation > 0) breakdown.push('บริจาค');
 
                 return (
-                  <tr key={tx.id} className="group hover:bg-slate-50/50 transition-all">
-                    <td className="px-8 py-5">
-                      <div className="font-bold text-slate-700">
-                        {new Date(tx.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
+                  <tr key={tx.id} className="group hover:bg-slate-50/50 transition-all h-24">
+                    <td className="px-8 py-4">
+                      <div className="font-bold text-slate-700 text-base">
+                        {formatThaiDate(tx.date)}
                       </div>
-                      <div className="text-[10px] text-slate-300 flex items-center gap-1 font-mono">
-                        <Clock className="w-3 h-3" />
+                      <div className="text-[11px] text-slate-300 flex items-center gap-1 font-mono mt-1">
+                        <Clock className="w-3.5 h-3.5" />
                         {new Date(tx.timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </td>
                     {currentUser?.role === UserRole.STAFF && (
-                      <td className="px-8 py-5">
-                        <div className="font-black text-slate-800">{tx.memberName}</div>
-                        <div className="text-[10px] text-teal-600 font-bold uppercase">{tx.memberCode}</div>
+                      <td className="px-8 py-4">
+                        <div className="font-black text-slate-800 text-base">{tx.memberName}</div>
+                        <div className="text-xs text-blue-500 font-black uppercase mt-0.5 tracking-tight">{tx.memberCode}</div>
                       </td>
                     )}
-                    <td className="px-8 py-5">
+                    <td className="px-8 py-4">
                        <div className="flex flex-wrap gap-1">
-                          {breakdown.map(b => (
-                            <span key={b} className="bg-teal-50 text-teal-700 text-[9px] px-2 py-0.5 rounded-md border border-teal-100 font-black uppercase">
-                              {b}
-                            </span>
-                          ))}
-                          {breakdown.length === 0 && <span className="text-slate-300 italic text-xs">เบ็ดเตล็ด</span>}
+                          {breakdown.length > 0 ? (
+                            breakdown.map(b => (
+                              <span key={b} className="text-slate-400 text-xs font-medium italic">
+                                {b}{breakdown.indexOf(b) < breakdown.length - 1 ? ',' : ''}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-slate-400 italic text-xs">เบ็ดเตล็ด</span>
+                          )}
                        </div>
                     </td>
-                    <td className="px-8 py-5">
-                       <div className={`flex items-center gap-2 text-[10px] font-black ${tx.paymentMethod === 'transfer' ? 'text-blue-600' : 'text-slate-500'}`}>
-                          {tx.paymentMethod === 'transfer' ? <Landmark className="w-3.5 h-3.5" /> : <Banknote className="w-3.5 h-3.5" />}
+                    <td className="px-8 py-4">
+                       <div className={`flex items-center gap-2 text-sm font-bold ${tx.paymentMethod === 'transfer' ? 'text-blue-500' : 'text-slate-500'}`}>
+                          {tx.paymentMethod === 'transfer' ? <Landmark className="w-4 h-4" /> : <Banknote className="w-4 h-4" />}
                           {tx.paymentMethod === 'transfer' ? 'เงินโอน' : 'เงินสด'}
                        </div>
                     </td>
-                    <td className="px-8 py-5 text-right">
-                       <div className="text-lg font-black text-slate-800">
-                          {tx.totalAmount.toLocaleString()} ฿
+                    <td className="px-8 py-4 text-right">
+                       <div className="text-xl font-black text-slate-800">
+                          {formatTHB(tx.totalAmount)} ฿
                        </div>
-                       <div className="text-[9px] text-slate-300 uppercase font-bold tracking-tighter">โดย {tx.recordedBy}</div>
+                       <div className="text-[10px] text-slate-300 font-bold mt-0.5">โดย</div>
                     </td>
                     {currentUser?.role === UserRole.STAFF && (
-                      <td className="px-8 py-5">
+                      <td className="px-8 py-4">
                         <div className="flex items-center justify-center">
                            <button 
                              onClick={() => handleDelete(tx.id, tx.memberId, tx.memberName, tx.totalAmount)}
-                             className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                             className="p-3 text-slate-200 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
                              title="ลบรายการและคืนยอดหนี้"
                            >
                               <Trash2 className="w-5 h-5" />
@@ -205,7 +195,7 @@ export const PaymentHistory: React.FC = () => {
                   <td colSpan={currentUser?.role === UserRole.STAFF ? 6 : 4} className="py-24 text-center">
                     <div className="flex flex-col items-center justify-center text-slate-300">
                       <FileText className="w-16 h-16 mb-4 opacity-10" />
-                      <p className="font-black">ไม่พบประวัติการชำระเงินในช่วงเวลานี้</p>
+                      <p className="font-black">ไม่พบประวัติการชำระเงิน</p>
                     </div>
                   </td>
                 </tr>
