@@ -2,8 +2,8 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../context/StoreContext';
 import { 
-  Search, History, Calendar, Banknote, Landmark, Clock, 
-  Trash2, Download, FileText, AlertTriangle, Filter
+  Search, Calendar, Banknote, Landmark, Clock, 
+  Trash2, Download, FileText
 } from 'lucide-react';
 import { UserRole } from '../types';
 
@@ -28,8 +28,14 @@ export const PaymentHistory: React.FC = () => {
       txs = txs.filter(tx => tx.memberId === currentUser.memberId);
     }
 
-    // Sort by timestamp descending (Newest first) as requested "Order by date"
-    return txs.sort((a, b) => b.timestamp - a.timestamp);
+    /** 
+     * CRITICAL: Sort by timestamp descending (Newest first)
+     * "เรียงวันนี้ให้วันที่ล่าสุดอยู่ข้างบน วันที่เก่าอยู่ข้างล่าง"
+     */
+    return txs.sort((a, b) => {
+      // Prioritize timestamp for precise sorting including time
+      return (b.timestamp || 0) - (a.timestamp || 0);
+    });
   }, [members, currentUser]);
 
   const filteredTransactions = useMemo(() => {
@@ -57,7 +63,8 @@ export const PaymentHistory: React.FC = () => {
   const formatThaiDate = (dateStr: string) => {
     const d = new Date(dateStr);
     const months = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
-    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543 - 2500}`;
+    const year = (d.getFullYear() + 543).toString().slice(-2);
+    return `${d.getDate()} ${months[d.getMonth()]} ${year}`;
   };
 
   return (
@@ -72,7 +79,7 @@ export const PaymentHistory: React.FC = () => {
       </div>
 
       {/* Filter Bar - Matches Screenshot style */}
-      <div className="bg-slate-100/50 p-6 rounded-[2rem] border border-slate-200 flex flex-col md:flex-row gap-4 items-center shadow-sm">
+      <div className="bg-slate-100/50 p-6 rounded-[2rem] border border-slate-200 flex flex-col md:flex-row gap-4 items-center shadow-sm print:hidden">
         <div className="relative flex-1 w-full">
           <input 
             type="text" 
@@ -106,8 +113,8 @@ export const PaymentHistory: React.FC = () => {
         </button>
       </div>
 
-      {/* Transaction Table */}
-      <div className="bg-white rounded-[2rem] shadow-sm border-2 border-blue-400/30 overflow-hidden">
+      {/* Transaction Table with Blue Border highlight per screenshot */}
+      <div className="bg-white rounded-[2rem] shadow-sm border-2 border-blue-400 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-slate-400 font-bold uppercase text-[11px] tracking-wider">
@@ -152,9 +159,9 @@ export const PaymentHistory: React.FC = () => {
                     <td className="px-8 py-4">
                        <div className="flex flex-wrap gap-1">
                           {breakdown.length > 0 ? (
-                            breakdown.map(b => (
+                            breakdown.map((b, i) => (
                               <span key={b} className="text-slate-400 text-xs font-medium italic">
-                                {b}{breakdown.indexOf(b) < breakdown.length - 1 ? ',' : ''}
+                                {b}{i < breakdown.length - 1 ? ',' : ''}
                               </span>
                             ))
                           ) : (
