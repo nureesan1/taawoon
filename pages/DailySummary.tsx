@@ -1,188 +1,225 @@
 
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../context/StoreContext';
-import { Search, FileText, TrendingUp, Filter, Clock, Download, Building, MapPin, Coins, PiggyBank, Wallet, Calendar, Banknote, Landmark } from 'lucide-react';
-
-type SummaryPeriod = 'daily' | 'monthly' | 'yearly';
-
-const getLocalDateString = (dateInput?: any) => {
-  const date = dateInput ? new Date(dateInput) : new Date();
-  if (isNaN(date.getTime())) return '';
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
+import { 
+  FileText, Download, Calendar, Banknote, 
+  Search, ChevronLeft, ChevronRight, Printer, Filter
+} from 'lucide-react';
 
 export const DailySummary: React.FC = () => {
   const { members, setView } = useStore();
-  const [period, setPeriod] = useState<SummaryPeriod>('daily');
-  const [selectedDate, setSelectedDate] = useState(getLocalDateString());
+  const [targetYear, setTargetYear] = useState(new Date().getFullYear() + 543);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const allTransactions = useMemo(() => {
-    return members.flatMap(member => 
-      (member.transactions || []).map(tx => ({
-        ...tx,
-        memberName: member.name,
-        memberCode: member.memberCode
-      }))
-    ).sort((a, b) => b.timestamp - a.timestamp);
-  }, [members]);
+  const months = [
+    "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+    "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
+  ];
 
-  const filteredTransactions = useMemo(() => {
-    return allTransactions.filter(tx => {
-      const txDate = new Date(tx.date);
-      const selDate = new Date(selectedDate);
-      const matchesSearch = tx.memberName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            tx.memberCode.toLowerCase().includes(searchTerm.toLowerCase());
-      if (!matchesSearch) return false;
-      const txDateStr = getLocalDateString(tx.date);
-      const selDateStr = getLocalDateString(selectedDate);
-      if (period === 'daily') return txDateStr === selDateStr;
-      if (period === 'monthly') return txDate.getMonth() === selDate.getMonth() && txDate.getFullYear() === selDate.getFullYear();
-      return txDate.getFullYear() === selDate.getFullYear();
-    });
-  }, [allTransactions, period, selectedDate, searchTerm]);
+  // คำนวณข้อมูลสำหรับตารางรายปี
+  const yearlyData = useMemo(() => {
+    const yearAD = targetYear - 543;
+    
+    return members.map((member, index) => {
+      const monthlyInstallment = member.monthlyInstallment || 0;
+      const initialMissedCount = member.missedInstallments || 0;
+      const initialDebt = monthlyInstallment * initialMissedCount;
 
-  const totals = useMemo(() => {
-    return filteredTransactions.reduce((acc, tx) => ({
-      housing: acc.housing + (Number(tx.housing) || 0),
-      land: acc.land + (Number(tx.land) || 0),
-      shares: acc.shares + (Number(tx.shares) || 0),
-      savings: acc.savings + (Number(tx.savings) || 0),
-      general: acc.general + (Number(tx.generalLoan) || 0),
-      // Fix: Removed access to non-existent property 'tx.others' to fix TS error
-      others: acc.others + (Number(tx.welfare) || 0) + (Number(tx.insurance) || 0) + (Number(tx.donation) || 0),
-      grandTotal: acc.grandTotal + (Number(tx.totalAmount) || 0),
-      cash: acc.cash + (tx.paymentMethod === 'cash' ? (Number(tx.totalAmount) || 0) : 0),
-      transfer: acc.transfer + (tx.paymentMethod === 'transfer' ? (Number(tx.totalAmount) || 0) : 0)
-    }), { housing: 0, land: 0, shares: 0, savings: 0, general: 0, others: 0, grandTotal: 0, cash: 0, transfer: 0 });
-  }, [filteredTransactions]);
+      // สร้าง Array เก็บยอดชำระ 12 เดือน
+      const monthlyPaid = Array(12).fill(0);
+      const yearTxs = (member.transactions || []).filter(tx => {
+        const d = new Date(tx.date);
+        return d.getFullYear() === yearAD;
+      });
 
-  const formatTHB = (num: number) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(num);
+      yearTxs.forEach(tx => {
+        const month = new Date(tx.date).getMonth();
+        // รวมยอดหนี้ 3 ประเภทหลัก
+        monthlyPaid[month] += (Number(tx.housing) || 0) + (Number(tx.land) || 0) + (Number(tx.generalLoan) || 0);
+      });
+
+      const totalPaidYear = monthlyPaid.reduce((a, b) => a + b, 0);
+      // งวดที่ชำระ (นับจำนวนเดือนที่มีการจ่ายเงิน)
+      const installmentsPaid = monthlyPaid.filter(v => v >= monthlyInstallment).length;
+      
+      // ยอดค้างชำระทั้งปี (สูตร: ยอดค้างยกมา + (ยอดต่องวด * 12) - ยอดชำระจริง)
+      const yearlyDebtBalance = Math.max(0, initialDebt + (monthlyInstallment * 12) - totalPaidYear);
+      
+      // จำนวนงวดที่ค้าง (ยอดค้างสุทธิ / ยอดต่องวด)
+      const totalMissedCount = Math.ceil(yearlyDebtBalance / (monthlyInstallment || 1));
+
+      return {
+        ...member,
+        no: index + 1,
+        initialDebt,
+        monthlyPaid,
+        totalPaidYear,
+        yearlyDebtBalance,
+        totalMissedCount,
+        installmentsPaid
+      };
+    }).filter(m => 
+      m.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      m.memberCode.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [members, targetYear, searchTerm]);
+
+  const formatNum = (num: number) => num === 0 ? '' : new Intl.NumberFormat('th-TH').format(num);
+  
+  const getStatusColor = (count: number) => {
+    if (count <= 0) return 'bg-emerald-500 text-white';
+    if (count <= 12) return 'bg-green-400 text-white';
+    if (count <= 36) return 'bg-yellow-400 text-slate-800';
+    return 'bg-red-500 text-white';
+  };
 
   return (
-    <div className="space-y-6 pb-24">
-      {/* Date Picker Section */}
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 space-y-4">
-        <div className="flex items-center justify-between gap-3">
-           <div className="flex items-center gap-3">
-              <div className="bg-teal-50 p-3 rounded-2xl text-teal-600"><Calendar className="w-6 h-6" /></div>
-              <div>
-                 <h1 className="text-xl font-black text-slate-800 tracking-tight">สรุปรายงาน</h1>
-                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{period} Report</p>
-              </div>
-           </div>
-           
-           {/* Add Payment Button at the top right corner of the card */}
-           <button 
-             onClick={() => setView('record_payment')}
-             className="flex items-center gap-2 bg-[#064e3b] text-white px-4 py-2.5 rounded-2xl hover:bg-black transition-all shadow-lg shadow-teal-900/10 active:scale-95 font-bold text-xs"
-           >
-              <Banknote className="w-4 h-4" />
-              <span className="hidden sm:inline">บันทึกรับชำระ</span>
-              <span className="sm:hidden">รับชำระ</span>
-           </button>
+    <div className="space-y-6 pb-20 animate-fade-in">
+      
+      {/* Header & Year Filter */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+        <div className="flex items-center gap-4">
+          <div className="bg-[#064e3b] p-3 rounded-2xl text-white">
+            <Calendar className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="text-xl font-black text-slate-800 tracking-tight">สรุปข้อมูลลูกหนี้รายปี</h1>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Yearly Debt Summary - {targetYear}</p>
+          </div>
         </div>
 
-        <div className="flex flex-col gap-3">
-           <div className="grid grid-cols-3 bg-slate-100 p-1.5 rounded-2xl">
-              {(['daily', 'monthly', 'yearly'] as SummaryPeriod[]).map(p => (
-                 <button key={p} onClick={() => setPeriod(p)} className={`py-2.5 rounded-xl text-xs font-black transition-all ${period === p ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>
-                    {p === 'daily' ? 'รายวัน' : p === 'monthly' ? 'รายเดือน' : 'รายปี'}
-                 </button>
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 w-4 h-4" />
+            <input 
+              type="text" 
+              placeholder="ค้นหาชื่อ..." 
+              className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-teal-500"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+             <button onClick={() => setTargetYear(targetYear - 1)} className="p-2 hover:bg-white rounded-lg transition-all"><ChevronLeft className="w-4 h-4" /></button>
+             <span className="px-4 font-black text-slate-700 text-sm">{targetYear}</span>
+             <button onClick={() => setTargetYear(targetYear + 1)} className="p-2 hover:bg-white rounded-lg transition-all"><ChevronRight className="w-4 h-4" /></button>
+          </div>
+          <button onClick={() => window.print()} className="p-2.5 bg-slate-800 text-white rounded-xl hover:bg-black transition-all shadow-md">
+            <Printer className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Yearly Table Container */}
+      <div className="bg-white rounded-[2rem] shadow-xl border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto no-scrollbar">
+          <table className="w-full text-left border-collapse min-w-[1500px]">
+            <thead>
+              {/* Main Header Labels */}
+              <tr className="bg-emerald-50 text-[10px] font-black text-slate-500 uppercase tracking-tighter border-b border-slate-200">
+                <th colSpan={3} className="px-4 py-3 border-r border-slate-200 text-center bg-emerald-100/50">ข้อมูลสมาชิก</th>
+                <th className="px-2 py-3 border-r border-slate-200 text-center">ค้างเก่า</th>
+                <th className="px-2 py-3 border-r border-slate-200 text-center">ค้างยกมา</th>
+                <th className="px-2 py-3 border-r border-slate-200 text-center bg-yellow-50">ชำระ</th>
+                <th colSpan={12} className="px-2 py-3 border-r border-slate-200 text-center">รายละเอียดการชำระเงินรายเดือน (ม.ค. - ธ.ค.)</th>
+                <th className="px-2 py-3 border-r border-slate-200 text-center bg-orange-50">ยอดรวม</th>
+                <th className="px-2 py-3 border-r border-slate-200 text-center bg-red-50 text-red-600">ยอดค้าง</th>
+                <th colSpan={2} className="px-2 py-3 text-center bg-slate-100">สรุปผล</th>
+              </tr>
+              {/* Detailed Header Labels */}
+              <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-tight border-b border-slate-300 shadow-sm">
+                <th className="px-3 py-4 text-center border-r border-slate-200 w-12">ลำดับ</th>
+                <th className="px-4 py-4 border-r border-slate-200 min-w-[180px]">ชื่อ-สกุล</th>
+                <th className="px-3 py-4 border-r border-slate-200 text-center w-20">รหัส</th>
+                <th className="px-2 py-4 border-r border-slate-200 text-center w-16">จำนวนงวดที่ค้าง</th>
+                <th className="px-2 py-4 border-r border-slate-200 text-right w-24">ยอดค้างยกมา</th>
+                <th className="px-2 py-4 border-r border-slate-200 text-right w-24 bg-yellow-50/50">ยอดชำระต่องวด</th>
+                {months.map((m, i) => (
+                  <th key={m} className="px-2 py-4 border-r border-slate-200 text-center w-20">{m}({i+1})</th>
+                ))}
+                <th className="px-2 py-4 border-r border-slate-200 text-right w-24 bg-orange-50/50">ยอดรวมชำระ</th>
+                <th className="px-2 py-4 border-r border-slate-200 text-right w-24 bg-red-50/50">ยอดค้างทั้งปี</th>
+                <th className="px-2 py-4 border-r border-slate-200 text-center w-16">งวดค้าง</th>
+                <th className="px-2 py-4 text-center w-16">งวดที่ชำระ</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-[11px] font-bold">
+              {yearlyData.map((row) => (
+                <tr key={row.id} className="hover:bg-slate-50/80 transition-all h-12">
+                  <td className="px-3 py-2 text-center border-r border-slate-100 text-slate-400">{row.no}</td>
+                  <td className="px-4 py-2 border-r border-slate-100 font-black text-slate-800">{row.name}</td>
+                  <td className="px-3 py-2 border-r border-slate-100 text-center font-mono text-blue-500">{row.memberCode}</td>
+                  <td className="px-2 py-2 border-r border-slate-100 text-center">{row.missedInstallments || 0}</td>
+                  <td className="px-2 py-2 border-r border-slate-100 text-right">{formatNum(row.initialDebt)}</td>
+                  <td className="px-2 py-2 border-r border-slate-100 text-right font-black text-teal-600 bg-yellow-50/30">{formatNum(row.monthlyInstallment)}</td>
+                  
+                  {/* คอลัมน์เดือน 1-12 */}
+                  {row.monthlyPaid.map((val, idx) => (
+                    <td key={idx} className={`px-2 py-2 border-r border-slate-100 text-right ${val > 0 ? 'text-slate-900 font-black' : 'text-slate-200'}`}>
+                      {formatNum(val)}
+                    </td>
+                  ))}
+
+                  <td className="px-2 py-2 border-r border-slate-100 text-right font-black text-slate-800 bg-orange-50/30">{formatNum(row.totalPaidYear)}</td>
+                  <td className="px-2 py-2 border-r border-slate-100 text-right font-black text-red-600 bg-red-50/30">{formatNum(row.yearlyDebtBalance)}</td>
+                  
+                  {/* สรุปจำนวนงวดที่ค้าง (สีตามความรุนแรง) */}
+                  <td className={`px-2 py-2 border-r border-slate-100 text-center font-black ${getStatusColor(row.totalMissedCount)}`}>
+                    {row.totalMissedCount}
+                  </td>
+                  
+                  {/* งวดที่ชำระ (เฉดสีเขียวอ่อน) */}
+                  <td className="px-2 py-2 text-center font-black bg-teal-100 text-teal-800">
+                    {row.installmentsPaid}
+                  </td>
+                </tr>
               ))}
-           </div>
-           <input 
-              type={period === 'yearly' ? 'number' : period === 'monthly' ? 'month' : 'date'}
-              value={period === 'yearly' ? new Date(selectedDate).getFullYear() : selectedDate.slice(0, period === 'monthly' ? 7 : 10)}
-              onChange={(e) => setSelectedDate(e.target.value + (period === 'monthly' ? '-01' : ''))}
-              className="w-full p-4 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-teal-500 outline-none font-bold text-slate-700 bg-slate-50/50"
-           />
+              {yearlyData.length === 0 && (
+                <tr>
+                  <td colSpan={22} className="py-24 text-center text-slate-300">
+                    <div className="flex flex-col items-center justify-center">
+                       <FileText className="w-16 h-16 mb-4 opacity-10" />
+                       <p className="font-black">ไม่พบข้อมูลสมาชิกในปี {targetYear}</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Net Total Card */}
-      <div className="bg-[#064e3b] rounded-3xl p-8 text-white shadow-xl shadow-teal-900/10 flex flex-col items-center text-center space-y-4">
-          <div className="space-y-1">
-             <p className="text-teal-300 font-bold uppercase text-[10px] tracking-[0.2em]">ยอดรับเงินสุทธิ</p>
-             <h2 className="text-4xl font-black tracking-tight">{formatTHB(totals.grandTotal)}</h2>
-          </div>
-          
-          <div className="flex gap-4 pt-2 w-full justify-center">
-             <div className="bg-white/10 px-4 py-2 rounded-2xl flex items-center gap-2">
-                <Banknote className="w-4 h-4 text-teal-300" />
-                <div className="text-left">
-                   <p className="text-[8px] uppercase font-bold text-teal-400 leading-none">เงินสด</p>
-                   <p className="text-sm font-black">{formatTHB(totals.cash)}</p>
-                </div>
-             </div>
-             <div className="bg-white/10 px-4 py-2 rounded-2xl flex items-center gap-2">
-                <Landmark className="w-4 h-4 text-blue-300" />
-                <div className="text-left">
-                   <p className="text-[8px] uppercase font-bold text-teal-400 leading-none">เงินโอน</p>
-                   <p className="text-sm font-black">{formatTHB(totals.transfer)}</p>
-                </div>
-             </div>
-          </div>
-
-          <div className="pt-2 flex gap-2">
-             <div className="bg-white/20 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">{filteredTransactions.length} รายการ</div>
-             <button className="bg-teal-500 text-white px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1"><Download className="w-3 h-3" /> Export</button>
-          </div>
+      {/* Footer Instructions (Web Only) */}
+      <div className="print:hidden bg-blue-50 p-6 rounded-[2rem] border border-blue-100 flex items-start gap-4">
+        <div className="p-2 bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-200">
+          <Download className="w-6 h-6" />
+        </div>
+        <div>
+          <h3 className="text-sm font-black text-blue-900 uppercase tracking-widest">ข้อมูลการชำระเงินรายปี</h3>
+          <p className="text-xs text-blue-700 mt-1 leading-relaxed">
+            ตารางนี้สรุปยอดชำระจาก **ค่าบ้าน, ค่าที่ดิน และ สินเชื่อทั่วไป** โดยคำนวณตามงวดปฏิทิน มกราคม - ธันวาคม <br/>
+            คุณสามารถใช้หน้าจอนี้เพื่อตรวจสอบสถานะหนี้คงเหลือรวมของสมาชิกทุกคน และใช้ในการออกรายงานสรุปยอดปลายปีได้ทันที
+          </p>
+        </div>
       </div>
 
-      {/* Transaction List - Mobile Cards */}
-      <div className="space-y-3">
-         <div className="flex items-center justify-between px-2">
-            <h3 className="font-black text-slate-800 tracking-tight">รายการรายบุคคล</h3>
-            <div className="relative">
-               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-               <input type="text" placeholder="ค้นหา..." className="pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-full text-xs outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}/>
-            </div>
-         </div>
-
-         <div className="space-y-3">
-            {filteredTransactions.map(tx => (
-               <div key={tx.id} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between transition-transform active:scale-[0.98]">
-                  <div className="flex gap-3 items-center">
-                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.paymentMethod === 'transfer' ? 'bg-blue-50 text-blue-600' : 'bg-teal-50 text-teal-600'}`}>
-                        {tx.paymentMethod === 'transfer' ? <Landmark className="w-5 h-5" /> : <Banknote className="w-5 h-5" />}
-                     </div>
-                     <div>
-                        <p className="font-black text-slate-800 text-sm leading-tight">{tx.memberName}</p>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
-                           {tx.memberCode} • {new Date(tx.timestamp).toLocaleTimeString('th-TH', {hour: '2-digit', minute: '2-digit'})}
-                        </p>
-                     </div>
-                  </div>
-                  <div className="text-right">
-                     <p className={`text-lg font-black ${tx.paymentMethod === 'transfer' ? 'text-blue-600' : 'text-teal-600'}`}>{formatTHB(tx.totalAmount)}</p>
-                     <span className="text-[8px] bg-slate-50 text-slate-400 px-2 py-0.5 rounded-full font-bold uppercase border border-slate-100">
-                        {tx.recordedBy}
-                     </span>
-                  </div>
-               </div>
-            ))}
-            {filteredTransactions.length === 0 && (
-               <div className="py-20 text-center text-slate-300">
-                  <Filter className="w-10 h-10 mx-auto opacity-20 mb-2" />
-                  <p className="text-sm font-bold">ไม่พบรายการ</p>
-               </div>
-            )}
-         </div>
-      </div>
-    </div>
-  );
-};
-
-const SummaryMiniCard: React.FC<{ label: string; value: number; color: string }> = ({ label, value, color }) => {
-  const cMap = { red: "text-red-600", orange: "text-orange-600", amber: "text-amber-600", teal: "text-teal-600", emerald: "text-emerald-600" };
-  return (
-    <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
-      <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">{label}</p>
-      <p className={`text-sm font-black truncate ${cMap[color as keyof typeof cMap]}`}>{new Intl.NumberFormat('th-TH').format(value)}</p>
+      {/* Print styles */}
+      <style>{`
+        @media print {
+          body { background: white !important; }
+          aside, header, nav, .print\\:hidden { display: none !important; }
+          main { padding: 0 !important; max-width: 100% !important; margin: 0 !important; }
+          .max-w-7xl { max-width: 100% !important; }
+          .shadow-sm, .shadow-xl { box-shadow: none !important; }
+          .bg-white { border: none !important; }
+          table { font-size: 8pt !important; width: 100% !important; }
+          th, td { border: 0.5pt solid #ccc !important; padding: 4pt !important; }
+          .rounded-\\[2rem\\], .rounded-3xl { border-radius: 0 !important; }
+          .bg-emerald-50, .bg-slate-50 { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; }
+          .overflow-x-auto { overflow: visible !important; }
+          @page { size: landscape; margin: 0.5cm; }
+        }
+      `}</style>
     </div>
   );
 };
