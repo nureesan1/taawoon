@@ -1,7 +1,7 @@
 
 /**
  * TAAWOON COOP API & LINE FLEX MESSAGE SYSTEM
- * ปรับปรุงล่าสุด: รองรับ Fulfillment จาก Dialogflow สำหรับ 6 หมวดหมู่หลัก
+ * ปรับปรุงล่าสุด: รองรับการส่งข้อมูล Transaction รายย่อยมายัง Frontend
  */
 
 const TARGET_SHEET_ID = "1YJQaoc3vP_5wrLscsbB-OwX_35RtjawxxcbCtcno9_o";
@@ -13,22 +13,117 @@ function getSS() {
 
 function doPost(e) {
   if (!e.postData || !e.postData.contents) return responseOK({ message: "No data" });
-  const contents = JSON.parse(e.postData.contents);
+  
+  // ตรวจสอบว่าข้อมูลมาในรูปแบบฟอร์มหรือ JSON
+  let contents;
+  try {
+    contents = JSON.parse(e.postData.contents);
+  } catch (err) {
+    // ถ้าไม่ใช่ JSON อาจเป็น URLSearchParams
+    const params = e.postData.contents.split('&').reduce((acc, curr) => {
+      const [key, value] = curr.split('=');
+      acc[decodeURIComponent(key)] = decodeURIComponent(value);
+      return acc;
+    }, {});
+    
+    if (params.action === 'getData') return responseOK(handleGetData());
+    return responseOK({ message: "Action not supported via form" });
+  }
+
   if (contents.queryResult) return handleDialogflowFulfillment(contents);
   if (contents.events) return handleLineWebhook(e.postData.contents);
+  
+  // เพิ่มการรองรับ API Actions จาก Frontend
+  const action = contents.action || (contents.data && contents.data.action);
+  if (action === 'getData') return responseOK(handleGetData());
+  
   return responseOK({ message: "Unsupported source" });
 }
 
+function handleGetData() {
+  const ss = getSS();
+  const mSheet = getSheet(ss, "Members");
+  const tSheet = getSheet(ss, "Transactions");
+  const lSheet = getSheet(ss, "Ledger");
+  
+  return {
+    members: getMembers(mSheet, tSheet),
+    ledger: lSheet.getDataRange().getValues().slice(1).map(r => ({
+      id: String(r[0]),
+      date: String(r[1]),
+      type: String(r[2]),
+      category: String(r[3]),
+      description: String(r[4]),
+      amount: Number(r[5])||0,
+      paymentMethod: String(r[6]),
+      recordedBy: String(r[7]),
+      timestamp: Number(r[8])
+    }))
+  };
+}
+
 /**
- * จัดการคำตอบสำหรับ Dialogflow (Fulfillment)
+ * ดึงข้อมูลสมาชิกพร้อมประวัติการชำระเงินที่สมบูรณ์
  */
+function getMembers(mSheet, tSheet) {
+  const m = mSheet.getDataRange().getValues();
+  const t = tSheet.getDataRange().getValues();
+  if (m.length < 2) return [];
+
+  const txMap = {};
+  if (t.length >= 2) {
+    t.slice(1).forEach(r => {
+      const mid = String(r[1]);
+      if (!txMap[mid]) txMap[mid] = [];
+      
+      // ดึงข้อมูลรายการย่อยจาก Columns 4-12 (ตามลำดับใน RecordPayment)
+      txMap[mid].push({
+        id: String(r[0]),
+        date: Utilities.formatDate(new Date(r[2]), "GMT+7", "yyyy-MM-dd"),
+        timestamp: Number(r[3]),
+        housing: Number(r[4]) || 0,
+        land: Number(r[5]) || 0,
+        shares: Number(r[6]) || 0,
+        savings: Number(r[7]) || 0,
+        welfare: Number(r[8]) || 0,
+        insurance: Number(r[9]) || 0,
+        donation: Number(r[10]) || 0,
+        generalLoan: Number(r[11]) || 0,
+        totalAmount: Number(r[12]) || 0
+      });
+    });
+  }
+
+  return m.slice(1).map(r => ({
+    id: String(r[0]),
+    name: String(r[1]),
+    memberCode: String(r[2]),
+    personalInfo: {
+      idCard: String(r[3]),
+      address: String(r[4]),
+      phone: String(r[5])
+    },
+    accumulatedShares: Number(r[8]) || 0,
+    savingsBalance: Number(r[9]) || 0,
+    housingLoanBalance: Number(r[10]) || 0,
+    landLoanBalance: Number(r[11]) || 0,
+    generalLoanBalance: Number(r[12]) || 0,
+    monthlyInstallment: Number(r[13]) || 0,
+    missedInstallments: Number(r[14]) || 0,
+    memberType: String(r[15]) === 'associate' ? 'associate' : 'ordinary',
+    joinedDate: String(r[16]),
+    transactions: txMap[String(r[0])] || []
+  }));
+}
+
+/* --- Dialogflow & LINE Webhook Functions --- */
+
 function handleDialogflowFulfillment(contents) {
   const intentName = contents.queryResult.intent.displayName;
   const queryText = contents.queryResult.queryText.trim();
   const userId = contents.originalDetectIntentRequest.payload.data.source.userId;
   const linked = getLinkedMember(userId);
   
-  // กรณีสมาชิกยังไม่ได้ลงทะเบียน
   if (!linked) {
     if (/^\d{13}$/.test(queryText)) {
       const member = findMemberByIdCard(queryText);
@@ -44,7 +139,6 @@ function handleDialogflowFulfillment(contents) {
   const member = findMemberById(linked.memberId);
   if (!member) return sendTextResponse("❌ ข้อมูลขัดข้อง กรุณาพิมพ์ 'ยกเลิก' เพื่อเริ่มใหม่");
 
-  // ตรวจสอบ Intent หรือ Keyword จากปุ่ม Rich Menu
   if (intentName === "CheckDebt" || queryText === "ยอดหนี้") {
     return sendFlexResponse("📊 รายงานยอดหนี้", generateDebtFlex(member));
   } 
@@ -72,9 +166,6 @@ function handleDialogflowFulfillment(contents) {
   }
 }
 
-/**
- * จัดการคำตอบสำหรับ LINE Webhook (Direct Message)
- */
 function handleLineWebhook(bodyText) {
   const data = JSON.parse(bodyText);
   data.events.forEach(event => {
@@ -124,7 +215,7 @@ function handleLineWebhook(bodyText) {
   return responseOK({ message: "Handled" });
 }
 
-/* --- Flex Message Generators (คงเดิมจากเวอร์ชันก่อนหน้า) --- */
+/* --- Flex Message Generators --- */
 
 function generateDebtFlex(member) {
   const formatNum = (num) => (num || 0).toLocaleString();
@@ -202,8 +293,3 @@ function getLinkedMember(lineUserId) { const data = getSheet(getSS(), "LineUsers
 function linkLineUser(lineUserId, memberId, idCard) { getSheet(getSS(), "LineUsers").appendRow([lineUserId, memberId, idCard, new Date()]); }
 function unlinkLineUser(lineUserId) { const sh = getSheet(getSS(), "LineUsers"); const data = sh.getDataRange().getValues(); for (let i = 1; i < data.length; i++) { if (data[i][0] === lineUserId) { sh.deleteRow(i + 1); break; } } }
 function getSheet(ss, name) { return ss.getSheetByName(name) || ss.insertSheet(name); }
-function getMembers(mSheet, tSheet) {
-  const m = mSheet.getDataRange().getValues(); const t = tSheet.getDataRange().getValues(); if (m.length < 2) return [];
-  const txMap = {}; t.slice(1).forEach(r => { const mid = String(r[1]); if(!txMap[mid]) txMap[mid]=[]; txMap[mid].push({ date: Utilities.formatDate(new Date(r[2]), "GMT+7", "yyyy-MM-dd"), totalAmount: Number(r[12])||0, timestamp: Number(r[3]) }); });
-  return m.slice(1).map(r => ({ id: String(r[0]), name: String(r[1]), memberCode: String(r[2]), personalInfo: { idCard: String(r[3]), address: String(r[4]), phone: String(r[5]) }, accumulatedShares: Number(r[8])||0, savingsBalance: Number(r[9])||0, housingLoanBalance: Number(r[10])||0, landLoanBalance: Number(r[11])||0, generalLoanBalance: Number(r[12])||0, monthlyInstallment: Number(r[13])||0, missedInstallments: Number(r[14])||0, transactions: txMap[String(r[0])] || [] }));
-}
