@@ -46,6 +46,8 @@ export interface Transaction {
   insurance: number;
   donation: number;
   generalLoan: number;
+  others?: number;
+  othersNote?: string;
   totalAmount: number;
   recordedBy: string;
   paymentMethod: PaymentMethod;
