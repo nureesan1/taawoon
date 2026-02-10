@@ -1,9 +1,10 @@
 
 /**
- * TAAWOON COOP SYSTEM - BACKEND SCRIPT (STABLE VERSION 4.0)
- * ระบบตรวจสอบหนี้สมาชิก - รองรับ Dialogflow Intents เต็มรูปแบบ
+ * TAAWOON COOP SYSTEM - BACKEND SCRIPT (STABLE VERSION 5.0)
+ * ระบบตรวจสอบหนี้สมาชิก - แก้ไขปัญหาการประกาศตัวแปรซ้ำซ้อน
  */
 
+// ประกาศค่าคงที่เพียงครั้งเดียวที่ด้านบนสุดของไฟล์
 const TARGET_SHEET_ID = "1YJQaoc3vP_5wrLscsbB-OwX_35RtjawxxcbCtcno9_o";
 const LINE_ACCESS_TOKEN = "96a450e6aad583f0c12860019eae0fc7"; 
 
@@ -35,7 +36,7 @@ function doPost(e) {
       return handleLineWebhook(contents);
     }
     
-    // 3. สำหรับ Web API ปกติ
+    // 3. สำหรับ Web API ปกติจากหน้าเว็บ
     const action = contents.action || (contents.data && contents.data.action);
     const data = contents.data || {};
     
@@ -63,7 +64,6 @@ function handleDialogflowFulfillment(contents) {
   const intentName = contents.queryResult.intent.displayName;
   const payload = contents.originalDetectIntentRequest.payload;
   
-  // ตรวจสอบที่มาของข้อมูล (ต้องมาจาก LINE)
   if (!payload || !payload.data || !payload.data.source) {
     return responseDialogflow("ระบบรองรับการใช้งานผ่าน LINE เท่านั้นครับ");
   }
@@ -71,12 +71,10 @@ function handleDialogflowFulfillment(contents) {
   const userId = payload.data.source.userId;
   const linked = getLinkedMember(userId);
 
-  // กรณี Intent พื้นฐานที่มักไม่ต้องใช้ข้อมูลสมาชิก
   if (intentName === 'Default Welcome Intent') {
     return responseDialogflow("ยินดีต้อนรับสู่ สหกรณ์ตะอาวุน ครับ\nกรุณาเลือกเมนูที่ท่านต้องการ หรือพิมพ์เลขบัตรประชาชนเพื่อลงทะเบียนครับ");
   }
 
-  // ตรวจสอบการลงทะเบียน
   if (!linked) {
     return responseDialogflow("⚠️ ท่านยังไม่ได้ลงทะเบียนสมาชิกกับระบบ LINE\nกรุณาพิมพ์ *เลขบัตรประชาชน 13 หลัก* เพื่อเริ่มใช้งานครับ");
   }
@@ -86,63 +84,41 @@ function handleDialogflowFulfillment(contents) {
 
   let message = null;
 
-  // การจัดการตามรายชื่อ Intent
   switch (intentName) {
     case 'Check_Debt':
     case 'CheckBalance':
       message = { type: "flex", altText: "ข้อมูลยอดหนี้", contents: generateDebtFlex(member) };
       break;
-
     case 'Check_Shares':
       message = { type: "flex", altText: "ข้อมูลหุ้นสะสม", contents: generateSharesFlex(member, 'shares') };
       break;
-
     case 'Check_Savings':
       message = { type: "flex", altText: "ข้อมูลเงินออมทรัพย์", contents: generateSharesFlex(member, 'savings') };
       break;
-
     case 'Check_History':
-    case 'taawoon-accounting':
       message = { type: "flex", altText: "ประวัติการชำระเงิน", contents: generateHistoryFlex(member) };
       break;
-
-    case 'CheckMemberInfo':
-    case 'Member_Profile':
-      const profile = "👤 ข้อมูลสมาชิก\n" +
-                      "ชื่อ: " + member.name + "\n" +
-                      "รหัส: " + member.memberCode + "\n" +
-                      "เลขบัตร: " + maskIdCard(member.personalInfo.idCard) + "\n" +
-                      "ประเภท: " + (member.memberType === 'associate' ? 'สมาชิกสมทบ' : 'สมาชิกสามัญ');
-      message = { type: "text", text: profile };
-      break;
-
     case 'Contact_Staff':
-    case 'ContactStaff':
       message = { type: "text", text: "☎️ ติดต่อเจ้าหน้าที่สหกรณ์\nโทร: 089-595-2329\n(น.ส.นูรีซัน ไพเราะ - ฝ่ายการเงิน)" };
       break;
-
     case 'Unlink_Account':
       unlinkLineUser(userId);
-      message = { type: "text", text: "🚫 ทำการยกเลิกการผูกบัญชีเรียบร้อยแล้ว\nหากต้องการใช้งานใหม่ กรุณาส่งเลขบัตรประชาชนอีกครั้งครับ" };
+      message = { type: "text", text: "🚫 ทำการยกเลิกการผูกบัญชีเรียบร้อยแล้ว" };
       break;
-
     default:
       message = { type: "text", text: "รับทราบครับ ท่านต้องการให้ผมช่วยเรื่องอะไรเพิ่มเติมไหมครับ?" };
   }
 
-  // ส่งคำตอบกลับไปยัง Dialogflow เพื่อแสดงใน LINE
   return ContentService.createTextOutput(JSON.stringify({
     fulfillmentMessages: [{ payload: { line: message } }]
   })).setMimeType(ContentService.MimeType.JSON);
 }
 
 function responseDialogflow(text) {
-  return ContentService.createTextOutput(JSON.stringify({
-    fulfillmentText: text
-  })).setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(JSON.stringify({ fulfillmentText: text })).setMimeType(ContentService.MimeType.JSON);
 }
 
-/* --- LINE LOGIC --- */
+/* --- LINE Webhook Handler --- */
 
 function handleLineWebhook(data) {
   const event = data.events[0];
@@ -152,25 +128,22 @@ function handleLineWebhook(data) {
   const replyToken = event.replyToken;
   const text = (event.message.text || "").trim();
 
-  // จัดการการลงทะเบียนผ่านเลขบัตร 13 หลัก
   if (/^\d{13}$/.test(text)) {
     const member = findMemberByIdCard(text);
     if (member) {
-      if (getLinkedMember(userId)) unlinkLineUser(userId); // ลบของเก่าถ้ามี
+      if (getLinkedMember(userId)) unlinkLineUser(userId);
       linkLineUser(userId, member.id, text);
       return replyLine(replyToken, [{ type: "text", text: "✅ ลงทะเบียนสำเร็จ!\nสวัสดีคุณ " + member.name + "\nท่านสามารถใช้งานเมนูตรวจสอบยอดได้ทันทีครับ" }]);
     } else {
-      return replyLine(replyToken, [{ type: "text", text: "❌ ไม่พบข้อมูลเลขบัตรประชาชนนี้ในระบบสหกรณ์\nกรุณาติดต่อเจ้าหน้าที่เพื่อปรับปรุงข้อมูลครับ" }]);
+      return replyLine(replyToken, [{ type: "text", text: "❌ ไม่พบข้อมูลเลขบัตรประชาชนนี้ในระบบสหกรณ์" }]);
     }
   }
-
   return responseOK({});
 }
 
 function replyLine(replyToken, messages) {
   try {
-    const url = "https://api.line.me/v2/bot/message/reply";
-    UrlFetchApp.fetch(url, {
+    UrlFetchApp.fetch("https://api.line.me/v2/bot/message/reply", {
       method: "post",
       contentType: "application/json",
       headers: { Authorization: "Bearer " + LINE_ACCESS_TOKEN },
@@ -180,44 +153,7 @@ function replyLine(replyToken, messages) {
   } catch (e) { logError("replyLine Error: " + e.message); }
 }
 
-/* --- Helpers & Data Logic --- */
-
-function getLinkedMember(userId) {
-  const sh = getSheet(getSS(), "LineUsers");
-  const data = sh.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === userId) return { memberId: data[i][1] };
-  }
-  return null;
-}
-
-function linkLineUser(userId, memberId, idCard) {
-  getSheet(getSS(), "LineUsers").appendRow([userId, memberId, idCard, new Date()]);
-}
-
-function unlinkLineUser(userId) {
-  const sh = getSheet(getSS(), "LineUsers");
-  const data = sh.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === userId) { sh.deleteRow(i + 1); break; }
-  }
-}
-
-function findMemberByIdCard(idCard) {
-  const members = handleGetData().members;
-  const clean = idCard.replace(/\D/g, '');
-  return members.find(m => m.personalInfo.idCard.replace(/\D/g, '') === clean);
-}
-
-function findMemberById(id) {
-  const members = handleGetData().members;
-  return members.find(m => String(m.id) === String(id));
-}
-
-function maskIdCard(id) {
-  if (!id || id.length < 13) return id;
-  return id.substring(0, 1) + "-XXXX-XXXXX-" + id.substring(11, 13);
-}
+/* --- Core Data Logic --- */
 
 function handleGetData() {
   const ss = getSS();
@@ -234,18 +170,10 @@ function handleGetData() {
       const mid = String(r[1]);
       if (!txMap[mid]) txMap[mid] = [];
       txMap[mid].push({ 
-        id: String(r[0]), 
-        date: String(r[2]), 
-        timestamp: Number(r[3]),
-        housing: Number(r[4]) || 0,
-        land: Number(r[5]) || 0,
-        shares: Number(r[6]) || 0,
-        savings: Number(r[7]) || 0,
-        welfare: Number(r[8]) || 0,
-        insurance: Number(r[9]) || 0,
-        donation: Number(r[10]) || 0,
-        generalLoan: Number(r[11]) || 0,
-        totalAmount: Number(r[12]) || 0
+        id: String(r[0]), date: String(r[2]), timestamp: Number(r[3]),
+        housing: Number(r[4]) || 0, land: Number(r[5]) || 0, shares: Number(r[6]) || 0,
+        savings: Number(r[7]) || 0, welfare: Number(r[8]) || 0, insurance: Number(r[9]) || 0,
+        donation: Number(r[10]) || 0, generalLoan: Number(r[11]) || 0, totalAmount: Number(r[12]) || 0
       });
     });
   }
@@ -273,7 +201,9 @@ function handleAddTransaction(tx) {
   const mSheet = getSheet(ss, "Members");
   const tSheet = getSheet(ss, "Transactions");
   const lSheet = getSheet(ss, "Ledger");
+  
   tSheet.appendRow([tx.id, tx.memberId, tx.date, tx.timestamp, tx.housing, tx.land, tx.shares, tx.savings, tx.welfare, tx.insurance, tx.donation, tx.generalLoan, tx.totalAmount, tx.recordedBy, tx.paymentMethod]);
+  
   const mData = mSheet.getDataRange().getValues();
   for (let i = 1; i < mData.length; i++) {
     if (String(mData[i][0]) === String(tx.memberId)) {
@@ -353,10 +283,48 @@ function handleInitDatabase() {
   return { status: "success" };
 }
 
+/* --- Helpers --- */
+
 function getSheet(ss, name) {
   let sh = ss.getSheetByName(name);
   if (!sh) sh = ss.insertSheet(name);
   return sh;
+}
+
+function getLinkedMember(userId) {
+  const sh = getSheet(getSS(), "LineUsers");
+  const data = sh.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === userId) return { memberId: data[i][1] };
+  }
+  return null;
+}
+
+function linkLineUser(userId, memberId, idCard) {
+  getSheet(getSS(), "LineUsers").appendRow([userId, memberId, idCard, new Date()]);
+}
+
+function unlinkLineUser(userId) {
+  const sh = getSheet(getSS(), "LineUsers");
+  const data = sh.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === userId) { sh.deleteRow(i + 1); break; }
+  }
+}
+
+function findMemberByIdCard(idCard) {
+  const members = handleGetData().members;
+  return members.find(m => m.personalInfo.idCard.replace(/\D/g, '') === idCard.replace(/\D/g, ''));
+}
+
+function findMemberById(id) {
+  const members = handleGetData().members;
+  return members.find(m => String(m.id) === String(id));
+}
+
+function maskIdCard(id) {
+  if (!id || id.length < 13) return id;
+  return id.substring(0, 1) + "-XXXX-XXXXX-" + id.substring(11, 13);
 }
 
 function responseOK(obj) { return ContentService.createTextOutput(JSON.stringify({ status: "success", ...obj })).setMimeType(ContentService.MimeType.JSON); }
