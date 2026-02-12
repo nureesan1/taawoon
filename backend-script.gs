@@ -1,10 +1,9 @@
 
 /**
- * TAAWOON COOP SYSTEM - BACKEND SCRIPT (STABLE VERSION 5.0)
- * ระบบตรวจสอบหนี้สมาชิก - แก้ไขปัญหาการประกาศตัวแปรซ้ำซ้อน
+ * TAAWOON COOP SYSTEM - BACKEND SCRIPT (STABLE VERSION 6.0)
+ * ระบบตรวจสอบหนี้สมาชิก - ปรับปรุง UI Flex Message ตามความต้องการผู้ใช้
  */
 
-// ประกาศค่าคงที่เพียงครั้งเดียวที่ด้านบนสุดของไฟล์
 const TARGET_SHEET_ID = "1YJQaoc3vP_5wrLscsbB-OwX_35RtjawxxcbCtcno9_o";
 const LINE_ACCESS_TOKEN = "96a450e6aad583f0c12860019eae0fc7"; 
 
@@ -25,21 +24,11 @@ function doPost(e) {
   try {
     const rawContent = e.postData.contents;
     const contents = JSON.parse(rawContent);
-
-    // 1. ตรวจสอบว่ามาจาก Dialogflow Fulfillment หรือไม่
-    if (contents.queryResult) {
-      return handleDialogflowFulfillment(contents);
-    }
+    if (contents.queryResult) return handleDialogflowFulfillment(contents);
+    if (contents.events && contents.events.length > 0) return handleLineWebhook(contents);
     
-    // 2. ตรวจสอบว่ามาจาก LINE Webhook ตรงหรือไม่
-    if (contents.events && contents.events.length > 0) {
-      return handleLineWebhook(contents);
-    }
-    
-    // 3. สำหรับ Web API ปกติจากหน้าเว็บ
     const action = contents.action || (contents.data && contents.data.action);
     const data = contents.data || {};
-    
     switch (action) {
       case 'getData': return responseOK(handleGetData());
       case 'addMember': return responseOK(handleAddMember(data.member));
@@ -63,34 +52,22 @@ function doPost(e) {
 function handleDialogflowFulfillment(contents) {
   const intentName = contents.queryResult.intent.displayName;
   const payload = contents.originalDetectIntentRequest.payload;
-  
-  if (!payload || !payload.data || !payload.data.source) {
-    return responseDialogflow("ระบบรองรับการใช้งานผ่าน LINE เท่านั้นครับ");
-  }
-
+  if (!payload || !payload.data || !payload.data.source) return responseDialogflow("ระบบรองรับการใช้งานผ่าน LINE เท่านั้นครับ");
   const userId = payload.data.source.userId;
   const linked = getLinkedMember(userId);
-
-  if (intentName === 'Default Welcome Intent') {
-    return responseDialogflow("ยินดีต้อนรับสู่ สหกรณ์ตะอาวุน ครับ\nกรุณาเลือกเมนูที่ท่านต้องการ หรือพิมพ์เลขบัตรประชาชนเพื่อลงทะเบียนครับ");
-  }
-
-  if (!linked) {
-    return responseDialogflow("⚠️ ท่านยังไม่ได้ลงทะเบียนสมาชิกกับระบบ LINE\nกรุณาพิมพ์ *เลขบัตรประชาชน 13 หลัก* เพื่อเริ่มใช้งานครับ");
-  }
-
+  if (intentName === 'Default Welcome Intent') return responseDialogflow("ยินดีต้อนรับสู่ สหกรณ์ตะอาวุน ครับ\nกรุณาส่งเลขบัตรประชาชน 13 หลัก เพื่อลงทะเบียนครับ");
+  if (!linked) return responseDialogflow("⚠️ ท่านยังไม่ได้ลงทะเบียนสมาชิก\nกรุณาพิมพ์ *เลขบัตรประชาชน 13 หลัก* ครับ");
   const member = findMemberById(linked.memberId);
-  if (!member) return responseDialogflow("❌ ขออภัย ไม่พบข้อมูลสมาชิกของท่านในฐานข้อมูลปัจจุบัน");
+  if (!member) return responseDialogflow("❌ ไม่พบข้อมูลสมาชิกในฐานข้อมูล");
 
   let message = null;
-
   switch (intentName) {
     case 'Check_Debt':
     case 'CheckBalance':
       message = { type: "flex", altText: "ข้อมูลยอดหนี้", contents: generateDebtFlex(member) };
       break;
     case 'Check_Shares':
-      message = { type: "flex", altText: "ข้อมูลหุ้นสะสม", contents: generateSharesFlex(member, 'shares') };
+      message = { type: "flex", altText: "ข้อมูลทุนเรือนหุ้น", contents: generateSharesFlex(member, 'shares') };
       break;
     case 'Check_Savings':
       message = { type: "flex", altText: "ข้อมูลเงินออมทรัพย์", contents: generateSharesFlex(member, 'savings') };
@@ -99,43 +76,31 @@ function handleDialogflowFulfillment(contents) {
       message = { type: "flex", altText: "ประวัติการชำระเงิน", contents: generateHistoryFlex(member) };
       break;
     case 'Contact_Staff':
-      message = { type: "text", text: "☎️ ติดต่อเจ้าหน้าที่สหกรณ์\nโทร: 089-595-2329\n(น.ส.นูรีซัน ไพเราะ - ฝ่ายการเงิน)" };
-      break;
-    case 'Unlink_Account':
-      unlinkLineUser(userId);
-      message = { type: "text", text: "🚫 ทำการยกเลิกการผูกบัญชีเรียบร้อยแล้ว" };
+      message = { type: "text", text: "☎️ ติดต่อเจ้าหน้าที่: 089-595-2329 (น.ส.นูรีซัน)" };
       break;
     default:
-      message = { type: "text", text: "รับทราบครับ ท่านต้องการให้ผมช่วยเรื่องอะไรเพิ่มเติมไหมครับ?" };
+      message = { type: "text", text: "รับทราบครับ มีอะไรให้ช่วยเพิ่มเติมไหมครับ?" };
   }
-
-  return ContentService.createTextOutput(JSON.stringify({
-    fulfillmentMessages: [{ payload: { line: message } }]
-  })).setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(JSON.stringify({ fulfillmentMessages: [{ payload: { line: message } }] })).setMimeType(ContentService.MimeType.JSON);
 }
 
-function responseDialogflow(text) {
-  return ContentService.createTextOutput(JSON.stringify({ fulfillmentText: text })).setMimeType(ContentService.MimeType.JSON);
-}
+function responseDialogflow(text) { return ContentService.createTextOutput(JSON.stringify({ fulfillmentText: text })).setMimeType(ContentService.MimeType.JSON); }
 
-/* --- LINE Webhook Handler --- */
+/* --- LINE Logic --- */
 
 function handleLineWebhook(data) {
   const event = data.events[0];
   if (!event || !event.replyToken) return responseOK({});
-  
   const userId = event.source.userId;
-  const replyToken = event.replyToken;
   const text = (event.message.text || "").trim();
-
   if (/^\d{13}$/.test(text)) {
     const member = findMemberByIdCard(text);
     if (member) {
       if (getLinkedMember(userId)) unlinkLineUser(userId);
       linkLineUser(userId, member.id, text);
-      return replyLine(replyToken, [{ type: "text", text: "✅ ลงทะเบียนสำเร็จ!\nสวัสดีคุณ " + member.name + "\nท่านสามารถใช้งานเมนูตรวจสอบยอดได้ทันทีครับ" }]);
+      return replyLine(event.replyToken, [{ type: "text", text: "✅ ลงทะเบียนสำเร็จ!\nสวัสดีคุณ " + member.name }]);
     } else {
-      return replyLine(replyToken, [{ type: "text", text: "❌ ไม่พบข้อมูลเลขบัตรประชาชนนี้ในระบบสหกรณ์" }]);
+      return replyLine(event.replyToken, [{ type: "text", text: "❌ ไม่พบข้อมูลเลขบัตรประชาชนนี้ในระบบ" }]);
     }
   }
   return responseOK({});
@@ -144,8 +109,7 @@ function handleLineWebhook(data) {
 function replyLine(replyToken, messages) {
   try {
     UrlFetchApp.fetch("https://api.line.me/v2/bot/message/reply", {
-      method: "post",
-      contentType: "application/json",
+      method: "post", contentType: "application/json",
       headers: { Authorization: "Bearer " + LINE_ACCESS_TOKEN },
       payload: JSON.stringify({ replyToken: replyToken, messages: messages }),
       muteHttpExceptions: true
@@ -170,10 +134,9 @@ function handleGetData() {
       const mid = String(r[1]);
       if (!txMap[mid]) txMap[mid] = [];
       txMap[mid].push({ 
-        id: String(r[0]), date: String(r[2]), timestamp: Number(r[3]),
-        housing: Number(r[4]) || 0, land: Number(r[5]) || 0, shares: Number(r[6]) || 0,
+        id: String(r[0]), housing: Number(r[4]) || 0, land: Number(r[5]) || 0, shares: Number(r[6]) || 0,
         savings: Number(r[7]) || 0, welfare: Number(r[8]) || 0, insurance: Number(r[9]) || 0,
-        donation: Number(r[10]) || 0, generalLoan: Number(r[11]) || 0, totalAmount: Number(r[12]) || 0
+        donation: Number(r[10]) || 0, generalLoan: Number(r[11]) || 0, totalAmount: Number(r[12]) || 0, date: String(r[2]), timestamp: Number(r[3])
       });
     });
   }
@@ -183,17 +146,12 @@ function handleGetData() {
     personalInfo: { idCard: String(r[3]), phone: String(r[5]), address: String(r[4]) },
     accumulatedShares: Number(r[8]) || 0, savingsBalance: Number(r[9]) || 0,
     housingLoanBalance: Number(r[10]) || 0, landLoanBalance: Number(r[11]) || 0,
-    generalLoanBalance: Number(r[12]) || 0, memberType: String(r[15]),
+    generalLoanBalance: Number(r[12]) || 0, monthlyInstallment: Number(r[13]) || 0,
+    missedInstallments: Number(r[14]) || 0, memberType: String(r[15]),
     transactions: txMap[String(r[0])] || []
   }));
 
-  const ledger = lData.slice(1).map(r => ({
-    id: String(r[0]), date: String(r[1]), type: String(r[2]), category: String(r[3]),
-    description: String(r[4]), amount: Number(r[5]) || 0, paymentMethod: String(r[6]),
-    recordedBy: String(r[7]), timestamp: Number(r[8])
-  }));
-
-  return { members, ledger };
+  return { members };
 }
 
 function handleAddTransaction(tx) {
@@ -201,9 +159,7 @@ function handleAddTransaction(tx) {
   const mSheet = getSheet(ss, "Members");
   const tSheet = getSheet(ss, "Transactions");
   const lSheet = getSheet(ss, "Ledger");
-  
   tSheet.appendRow([tx.id, tx.memberId, tx.date, tx.timestamp, tx.housing, tx.land, tx.shares, tx.savings, tx.welfare, tx.insurance, tx.donation, tx.generalLoan, tx.totalAmount, tx.recordedBy, tx.paymentMethod]);
-  
   const mData = mSheet.getDataRange().getValues();
   for (let i = 1; i < mData.length; i++) {
     if (String(mData[i][0]) === String(tx.memberId)) {
@@ -219,149 +175,139 @@ function handleAddTransaction(tx) {
   return { status: "success" };
 }
 
-function handleAddMember(m) {
-  getSheet(getSS(), "Members").appendRow([m.id, m.name, m.memberCode, m.personalInfo.idCard, m.personalInfo.address, m.personalInfo.phone, m.joinedDate, "", m.accumulatedShares, m.savingsBalance, m.housingLoanBalance, m.landLoanBalance, m.generalLoanBalance, m.monthlyInstallment, m.missedInstallments, m.memberType]);
-  return { status: "success" };
-}
-
+function handleAddMember(m) { getSheet(getSS(), "Members").appendRow([m.id, m.name, m.memberCode, m.personalInfo.idCard, m.personalInfo.address, m.personalInfo.phone, m.joinedDate, "", m.accumulatedShares, m.savingsBalance, m.housingLoanBalance, m.landLoanBalance, m.generalLoanBalance, m.monthlyInstallment, m.missedInstallments, m.memberType]); return { status: "success" }; }
 function handleUpdateMember(id, data) {
   const sh = getSheet(getSS(), "Members");
   const values = sh.getDataRange().getValues();
   for (let i = 1; i < values.length; i++) {
     if (String(values[i][0]) === String(id)) {
-      if (data.name !== undefined) sh.getRange(i+1, 2).setValue(data.name);
-      if (data.accumulatedShares !== undefined) sh.getRange(i+1, 9).setValue(data.accumulatedShares);
-      if (data.savingsBalance !== undefined) sh.getRange(i+1, 10).setValue(data.savingsBalance);
       if (data.housingLoanBalance !== undefined) sh.getRange(i+1, 11).setValue(data.housingLoanBalance);
       if (data.landLoanBalance !== undefined) sh.getRange(i+1, 12).setValue(data.landLoanBalance);
       if (data.generalLoanBalance !== undefined) sh.getRange(i+1, 13).setValue(data.generalLoanBalance);
+      if (data.accumulatedShares !== undefined) sh.getRange(i+1, 9).setValue(data.accumulatedShares);
+      if (data.savingsBalance !== undefined) sh.getRange(i+1, 10).setValue(data.savingsBalance);
       break;
     }
   }
   return { status: "success" };
 }
-
-function handleDeleteMember(id) {
-  const sh = getSheet(getSS(), "Members");
-  const values = sh.getDataRange().getValues();
-  for (let i = 1; i < values.length; i++) {
-    if (String(values[i][0]) === String(id)) { sh.deleteRow(i + 1); break; }
-  }
-  return { status: "success" };
-}
-
-function handleDeleteTransaction(id, mId) {
-  const ss = getSS();
-  const tSheet = getSheet(ss, "Transactions");
-  const tData = tSheet.getDataRange().getValues();
-  for (let i = 1; i < tData.length; i++) {
-    if (String(tData[i][0]) === String(id)) { tSheet.deleteRow(i + 1); break; }
-  }
-  return { status: "success" };
-}
-
-function handleAddLedgerItem(item) {
-  getSheet(getSS(), "Ledger").appendRow([item.id, item.date, item.type, item.category, item.description, item.amount, item.paymentMethod, item.recordedBy, item.timestamp]);
-  return { status: "success" };
-}
-
-function handleDeleteLedgerItem(id) {
-  const sh = getSheet(getSS(), "Ledger");
-  const data = sh.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]) === String(id)) { sh.deleteRow(i + 1); break; }
-  }
-  return { status: "success" };
-}
-
+function handleDeleteMember(id) { const sh = getSheet(getSS(), "Members"); const v = sh.getDataRange().getValues(); for (let i = 1; i < v.length; i++) { if (String(v[i][0]) === String(id)) { sh.deleteRow(i + 1); break; } } return { status: "success" }; }
+function handleDeleteTransaction(id) { const sh = getSheet(getSS(), "Transactions"); const v = sh.getDataRange().getValues(); for (let i = 1; i < v.length; i++) { if (String(v[i][0]) === String(id)) { sh.deleteRow(i + 1); break; } } return { status: "success" }; }
+function handleAddLedgerItem(item) { getSheet(getSS(), "Ledger").appendRow([item.id, item.date, item.type, item.category, item.description, item.amount, item.paymentMethod, item.recordedBy, item.timestamp]); return { status: "success" }; }
+function handleDeleteLedgerItem(id) { const sh = getSheet(getSS(), "Ledger"); const v = sh.getDataRange().getValues(); for (let i = 1; i < v.length; i++) { if (String(v[i][0]) === String(id)) { sh.deleteRow(i + 1); break; } } return { status: "success" }; }
 function handleInitDatabase() {
   const ss = getSS();
-  getSheet(ss, "Members").getRange(1, 1, 1, 16).setValues([["ID", "Name", "MemberCode", "IDCard", "Address", "Phone", "JoinedDate", "DOB", "Shares", "Savings", "Housing", "Land", "General", "Monthly", "Missed", "Type"]]);
-  getSheet(ss, "Transactions").getRange(1, 1, 1, 15).setValues([["ID", "MemberID", "Date", "Timestamp", "Housing", "Land", "Shares", "Savings", "Welfare", "Insurance", "Donation", "General", "Total", "By", "Method"]]);
-  getSheet(ss, "Ledger").getRange(1, 1, 1, 9).setValues([["ID", "Date", "Type", "Category", "Desc", "Amount", "Method", "By", "Timestamp"]]);
-  getSheet(ss, "LineUsers").getRange(1, 1, 1, 4).setValues([["UserID", "MemberID", "IDCard", "LinkedAt"]]);
+  getSheet(ss, "Members").getRange(1,1,1,16).setValues([["ID","Name","MemberCode","IDCard","Address","Phone","JoinedDate","DOB","Shares","Savings","Housing","Land","General","Monthly","Missed","Type"]]);
+  getSheet(ss, "Transactions").getRange(1,1,1,15).setValues([["ID","MemberID","Date","Timestamp","Housing","Land","Shares","Savings","Welfare","Insurance","Donation","General","Total","By","Method"]]);
+  getSheet(ss, "Ledger").getRange(1,1,1,9).setValues([["ID","Date","Type","Category","Desc","Amount","Method","By","Timestamp"]]);
+  getSheet(ss, "LineUsers").getRange(1,1,1,4).setValues([["UserID","MemberID","IDCard","LinkedAt"]]);
   return { status: "success" };
 }
 
 /* --- Helpers --- */
 
-function getSheet(ss, name) {
-  let sh = ss.getSheetByName(name);
-  if (!sh) sh = ss.insertSheet(name);
-  return sh;
-}
-
-function getLinkedMember(userId) {
-  const sh = getSheet(getSS(), "LineUsers");
-  const data = sh.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === userId) return { memberId: data[i][1] };
-  }
-  return null;
-}
-
-function linkLineUser(userId, memberId, idCard) {
-  getSheet(getSS(), "LineUsers").appendRow([userId, memberId, idCard, new Date()]);
-}
-
-function unlinkLineUser(userId) {
-  const sh = getSheet(getSS(), "LineUsers");
-  const data = sh.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === userId) { sh.deleteRow(i + 1); break; }
-  }
-}
-
-function findMemberByIdCard(idCard) {
-  const members = handleGetData().members;
-  return members.find(m => m.personalInfo.idCard.replace(/\D/g, '') === idCard.replace(/\D/g, ''));
-}
-
-function findMemberById(id) {
-  const members = handleGetData().members;
-  return members.find(m => String(m.id) === String(id));
-}
-
-function maskIdCard(id) {
-  if (!id || id.length < 13) return id;
-  return id.substring(0, 1) + "-XXXX-XXXXX-" + id.substring(11, 13);
-}
-
+function getSheet(ss, name) { let sh = ss.getSheetByName(name); if (!sh) sh = ss.insertSheet(name); return sh; }
+function getLinkedMember(userId) { const sh = getSheet(getSS(), "LineUsers"); const data = sh.getDataRange().getValues(); for (let i = 1; i < data.length; i++) { if (data[i][0] === userId) return { memberId: data[i][1] }; } return null; }
+function linkLineUser(userId, memberId, idCard) { getSheet(getSS(), "LineUsers").appendRow([userId, memberId, idCard, new Date()]); }
+function unlinkLineUser(userId) { const sh = getSheet(getSS(), "LineUsers"); const data = sh.getDataRange().getValues(); for (let i = 1; i < data.length; i++) { if (data[i][0] === userId) { sh.deleteRow(i + 1); break; } } }
+function findMemberByIdCard(idCard) { const m = handleGetData().members; return m.find(x => x.personalInfo.idCard.replace(/\D/g,'') === idCard.replace(/\D/g,'')); }
+function findMemberById(id) { const m = handleGetData().members; return m.find(x => String(x.id) === String(id)); }
 function responseOK(obj) { return ContentService.createTextOutput(JSON.stringify({ status: "success", ...obj })).setMimeType(ContentService.MimeType.JSON); }
 function responseError(msg) { return ContentService.createTextOutput(JSON.stringify({ status: "error", message: msg })).setMimeType(ContentService.MimeType.JSON); }
 
-/* --- Flex Message Generators --- */
+/* --- Flex Message Generators (Updated to match Screenshot) --- */
 
 function generateDebtFlex(member) {
   const total = (member.housingLoanBalance || 0) + (member.landLoanBalance || 0) + (member.generalLoanBalance || 0);
+  const missed = member.missedInstallments || 0;
+  
   return {
     "type": "bubble",
-    "header": { "type": "box", "layout": "vertical", "backgroundColor": "#064E3B", "contents": [{ "type": "text", "text": "📈 ยอดหนี้คงเหลือ", "weight": "bold", "color": "#FFFFFF" }] },
-    "body": { "type": "box", "layout": "vertical", "spacing": "md", "contents": [
-      { "type": "text", "text": "คุณ " + member.name, "weight": "bold", "size": "sm" },
-      { "type": "box", "layout": "horizontal", "contents": [{ "type": "text", "text": "ยอดรวมทั้งสิ้น", "flex": 1, "size": "sm" }, { "type": "text", "text": total.toLocaleString() + " ฿", "flex": 0, "weight": "bold", "color": "#EF4444" }] },
-      { "type": "separator" },
-      { "type": "box", "layout": "vertical", "spacing": "xs", "contents": [
-        { "type": "box", "layout": "horizontal", "contents": [{ "type": "text", "text": "• ค่าบ้าน", "size": "xs", "color": "#6B7280" }, { "type": "text", "text": (member.housingLoanBalance || 0).toLocaleString() + " ฿", "size": "xs", "align": "end" }] },
-        { "type": "box", "layout": "horizontal", "contents": [{ "type": "text", "text": "• ค่าที่ดิน", "size": "xs", "color": "#6B7280" }, { "type": "text", "text": (member.landLoanBalance || 0).toLocaleString() + " ฿", "size": "xs", "align": "end" }] },
-        { "type": "box", "layout": "horizontal", "contents": [{ "type": "text", "text": "• สินเชื่อทั่วไป", "size": "xs", "color": "#6B7280" }, { "type": "text", "text": (member.generalLoanBalance || 0).toLocaleString() + " ฿", "size": "xs", "align": "end" }] }
-      ]}
-    ]}
+    "header": {
+      "type": "box", "layout": "horizontal", "backgroundColor": "#064E3B", "paddingAll": "20px",
+      "contents": [
+        { "type": "text", "text": "📈", "size": "xl", "flex": 0 },
+        { "type": "text", "text": "ภาระหนี้สินทั้งหมด", "weight": "bold", "color": "#FFFFFF", "size": "lg", "margin": "md", "flex": 1 }
+      ]
+    },
+    "body": {
+      "type": "box", "layout": "vertical", "spacing": "md", "paddingAll": "25px",
+      "contents": [
+        { "type": "text", "text": "ยอดหนี้คงเหลือสุทธิ", "size": "sm", "color": "#64748B", "weight": "bold" },
+        {
+          "type": "box", "layout": "horizontal", "spacing": "sm", "margin": "sm", "contents": [
+            { "type": "text", "text": total.toLocaleString(), "size": "3xl", "weight": "black", "color": "#EF4444", "flex": 0 },
+            { "type": "text", "text": "บาท", "size": "xl", "weight": "bold", "color": "#EF4444", "gravity": "bottom", "flex": 0, "margin": "md" }
+          ]
+        },
+        { "type": "separator", "margin": "lg" },
+        {
+          "type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm",
+          "contents": [
+            {
+              "type": "box", "layout": "horizontal", "contents": [
+                { "type": "text", "text": "หนี้ค่าบ้าน", "size": "sm", "color": "#64748B", "weight": "bold" },
+                { "type": "text", "text": (member.housingLoanBalance || 0).toLocaleString() + " ฿", "size": "sm", "weight": "black", "color": "#1E293B", "align": "end" }
+              ]
+            },
+            {
+              "type": "box", "layout": "horizontal", "contents": [
+                { "type": "text", "text": "หนี้ค่าที่ดิน", "size": "sm", "color": "#64748B", "weight": "bold" },
+                { "type": "text", "text": (member.landLoanBalance || 0).toLocaleString() + " ฿", "size": "sm", "weight": "black", "color": "#1E293B", "align": "end" }
+              ]
+            },
+            {
+              "type": "box", "layout": "horizontal", "contents": [
+                { "type": "text", "text": "สินเชื่อทั่วไป", "size": "sm", "color": "#64748B", "weight": "bold" },
+                { "type": "text", "text": (member.generalLoanBalance || 0).toLocaleString() + " ฿", "size": "sm", "weight": "black", "color": "#1E293B", "align": "end" }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "box", "layout": "horizontal", "backgroundColor": "#FEF2F2", "paddingAll": "12px", "cornerRadius": "xl", "margin": "xl", "contents": [
+            { "type": "text", "text": "⚠️ ค้างชำระสะสม " + missed + " งวด", "size": "xs", "weight": "black", "color": "#EF4444", "align": "center" }
+          ]
+        }
+      ]
+    }
   };
 }
 
 function generateSharesFlex(member, type) {
   const isShares = type === 'shares';
+  const amount = isShares ? member.accumulatedShares : member.savingsBalance;
+  const color = isShares ? "#0D9488" : "#059669";
+  const title = isShares ? "ข้อมูลทุนเรือนหุ้น" : "เงินฝากออมทรัพย์";
+  const subtitle = isShares ? "ยอดหุ้นสะสมรวม" : "ยอดเงินฝากคงเหลือ";
+  const icon = isShares ? "🏛️" : "💰";
+
   return {
     "type": "bubble",
-    "header": { "type": "box", "layout": "vertical", "backgroundColor": isShares ? "#0D9488" : "#059669", "contents": [{ "type": "text", "text": isShares ? "🏛️ ทุนเรือนหุ้น" : "💰 เงินออมทรัพย์", "weight": "bold", "color": "#FFFFFF" }] },
-    "body": { "type": "box", "layout": "vertical", "spacing": "md", "contents": [
-      { "type": "text", "text": "คุณ " + member.name, "weight": "bold", "size": "sm" },
-      { "type": "box", "layout": "horizontal", "contents": [
-        { "type": "text", "text": isShares ? "หุ้นสะสมทั้งหมด" : "ยอดเงินฝากปัจจุบัน", "flex": 1, "size": "sm" },
-        { "type": "text", "text": (isShares ? member.accumulatedShares : member.savingsBalance).toLocaleString() + " ฿", "flex": 0, "weight": "bold", "color": isShares ? "#0D9488" : "#059669" }
-      ]}
-    ]}
+    "header": {
+      "type": "box", "layout": "horizontal", "backgroundColor": color, "paddingAll": "20px",
+      "contents": [
+        { "type": "text", "text": icon, "size": "xl", "flex": 0 },
+        { "type": "text", "text": title, "weight": "bold", "color": "#FFFFFF", "size": "lg", "margin": "md", "flex": 1 }
+      ]
+    },
+    "body": {
+      "type": "box", "layout": "vertical", "spacing": "md", "paddingAll": "25px",
+      "contents": [
+        { "type": "text", "text": subtitle, "size": "sm", "color": "#64748B", "weight": "bold" },
+        {
+          "type": "box", "layout": "horizontal", "spacing": "sm", "margin": "sm", "contents": [
+            { "type": "text", "text": (amount || 0).toLocaleString(), "size": "3xl", "weight": "black", "color": color, "flex": 0 },
+            { "type": "text", "text": "บาท", "size": "xl", "weight": "bold", "color": color, "gravity": "bottom", "flex": 0, "margin": "md" }
+          ]
+        },
+        isShares ? {
+          "type": "box", "layout": "vertical", "backgroundColor": "#F0FDFA", "paddingAll": "12px", "cornerRadius": "xl", "margin": "xl", "contents": [
+            { "type": "text", "text": "สิทธิประโยชน์: มีสิทธิได้รับปันผลประจำปี", "size": "xs", "weight": "black", "color": color, "align": "center" }
+          ]
+        } : { "type": "box", "layout": "vertical", "contents": [] }
+      ]
+    }
   };
 }
 
@@ -369,9 +315,15 @@ function generateHistoryFlex(member) {
   const txs = (member.transactions || []).slice(-5).reverse();
   return {
     "type": "bubble",
-    "header": { "type": "box", "layout": "vertical", "backgroundColor": "#374151", "contents": [{ "type": "text", "text": "📜 ประวัติชำระ 5 ครั้งล่าสุด", "weight": "bold", "color": "#FFFFFF" }] },
-    "body": { "type": "box", "layout": "vertical", "spacing": "sm", "contents": txs.length > 0 ? txs.map(tx => ({
-      "type": "box", "layout": "horizontal", "contents": [{ "type": "text", "text": String(tx.date), "size": "xs", "flex": 1 }, { "type": "text", "text": Number(tx.totalAmount).toLocaleString() + " ฿", "size": "xs", "weight": "bold", "align": "end" }]
-    })) : [{ "type": "text", "text": "ไม่พบประวัติการชำระเงิน", "size": "sm", "color": "#9CA3AF", "align": "center" }] }
+    "header": { "type": "box", "layout": "vertical", "backgroundColor": "#334155", "paddingAll": "15px", "contents": [{ "type": "text", "text": "📜 ประวัติชำระเงิน 5 ครั้งล่าสุด", "color": "#FFFFFF", "weight": "bold" }] },
+    "body": {
+      "type": "box", "layout": "vertical", "spacing": "sm", "paddingAll": "20px",
+      "contents": txs.length > 0 ? txs.map(tx => ({
+        "type": "box", "layout": "horizontal", "contents": [
+          { "type": "text", "text": tx.date, "size": "xs", "color": "#64748B" },
+          { "type": "text", "text": tx.totalAmount.toLocaleString() + " ฿", "size": "xs", "weight": "bold", "align": "end", "color": "#1E293B" }
+        ]
+      })) : [{ "type": "text", "text": "ไม่พบประวัติการชำระเงิน", "align": "center", "color": "#94A3B8", "size": "sm" }]
+    }
   };
 }
