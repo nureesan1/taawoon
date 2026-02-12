@@ -1,11 +1,12 @@
 
 /**
- * TAAWOON COOP SYSTEM - BACKEND SCRIPT (STABLE VERSION 6.0)
- * ระบบตรวจสอบหนี้สมาชิก - ปรับปรุง UI Flex Message ตามความต้องการผู้ใช้
+ * TAAWOON COOP SYSTEM - BACKEND SCRIPT (STABLE VERSION 7.0)
+ * ระบบตรวจสอบหนี้สมาชิก - ปรับปรุง UI Flex Message และอัปเดต Token
  */
 
 const TARGET_SHEET_ID = "1YJQaoc3vP_5wrLscsbB-OwX_35RtjawxxcbCtcno9_o";
-const LINE_ACCESS_TOKEN = "96a450e6aad583f0c12860019eae0fc7"; 
+// อัปเดต Token จากที่ผู้ใช้ระบุล่าสุด
+const LINE_ACCESS_TOKEN = "fSC99nQ32pISc+43cC4rkIsuxVsVhF4AmSqGCZ3qL/pgyUaAKgAkFERipkTqN66G9LCL/qC9eEhIsg7VIfshepVsSQi/QvGsyUbBj4eNzaKsCwPM8c83GlNUv4oibxX/bmTniEAWBKmcGp3JCImSHQdB04t89/1O/w1cDnyilFU="; 
 
 function getSS() {
   return SpreadsheetApp.openById(TARGET_SHEET_ID);
@@ -151,7 +152,13 @@ function handleGetData() {
     transactions: txMap[String(r[0])] || []
   }));
 
-  return { members };
+  const ledger = lData.slice(1).map(r => ({
+    id: String(r[0]), date: String(r[1]), type: String(r[2]), category: String(r[3]),
+    description: String(r[4]), amount: Number(r[5]) || 0, paymentMethod: String(r[6]),
+    recordedBy: String(r[7]), timestamp: Number(r[8])
+  }));
+
+  return { members, ledger };
 }
 
 function handleAddTransaction(tx) {
@@ -181,6 +188,7 @@ function handleUpdateMember(id, data) {
   const values = sh.getDataRange().getValues();
   for (let i = 1; i < values.length; i++) {
     if (String(values[i][0]) === String(id)) {
+      if (data.name !== undefined) sh.getRange(i+1, 2).setValue(data.name);
       if (data.housingLoanBalance !== undefined) sh.getRange(i+1, 11).setValue(data.housingLoanBalance);
       if (data.landLoanBalance !== undefined) sh.getRange(i+1, 12).setValue(data.landLoanBalance);
       if (data.generalLoanBalance !== undefined) sh.getRange(i+1, 13).setValue(data.generalLoanBalance);
@@ -215,7 +223,7 @@ function findMemberById(id) { const m = handleGetData().members; return m.find(x
 function responseOK(obj) { return ContentService.createTextOutput(JSON.stringify({ status: "success", ...obj })).setMimeType(ContentService.MimeType.JSON); }
 function responseError(msg) { return ContentService.createTextOutput(JSON.stringify({ status: "error", message: msg })).setMimeType(ContentService.MimeType.JSON); }
 
-/* --- Flex Message Generators (Updated to match Screenshot) --- */
+/* --- Flex Message Generators (Updated to match Screenshot Exactly) --- */
 
 function generateDebtFlex(member) {
   const total = (member.housingLoanBalance || 0) + (member.landLoanBalance || 0) + (member.generalLoanBalance || 0);
