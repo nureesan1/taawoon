@@ -1,135 +1,143 @@
 
 /**
- * TAAWOON COOP SYSTEM - BACKEND SCRIPT (STABLE VERSION 11.0)
- * ตรวจสอบและแก้ไขลำดับคอลัมน์ให้ตรงตาม Sheet จริงของผู้ใช้งาน
+ * TAAWOON COOP SYSTEM - BACKEND SCRIPT (STABLE VERSION 15.0)
+ * แก้ไขปัญหา: handleDialogflowFulfillment is not defined และเพิ่มระบบลงทะเบียนผ่าน Dialogflow
  */
 
 const TARGET_SHEET_ID = "1YJQaoc3vP_5wrLscsbB-OwX_35RtjawxxcbCtcno9_o";
 const LINE_ACCESS_TOKEN = "fSC99nQ32pISc+43cC4rkIsuxVsVhF4AmSqGCZ3qL/pgyUaAKgAkFERipkTqN66G9LCL/qC9eEhIsg7VIfshepVsSQi/QvGsyUbBj4eNzaKsCwPM8c83GlNUv4oibxX/bmTniEAWBKmcGp3JCImSHQdB04t89/1O/w1cDnyilFU="; 
 
-function getSS() {
-  return SpreadsheetApp.openById(TARGET_SHEET_ID);
-}
+// --- 1. ENTRY POINT ---
 
 function doPost(e) {
   try {
     const rawContent = e.postData.contents;
     const contents = JSON.parse(rawContent);
     
+    // ก) หากมาจาก Dialogflow (Fulfillment)
     if (contents.queryResult) {
       return handleDialogflowFulfillment(contents);
     }
     
+    // ข) หากมาจาก LINE โดยตรง (Webhook)
     if (contents.events && contents.events.length > 0) {
       return handleLineWebhook(contents);
     }
     
-    // สำหรับการเรียกจาก WebApp
+    // ค) หากมาจาก WebApp Dashboard
     const action = contents.action || (contents.data && contents.data.action);
-    const data = contents.data || {};
-    switch (action) {
-      case 'getData': return responseOK(handleGetData());
-      case 'addMember': return responseOK(handleAddMember(data.member));
-      case 'updateMember': return responseOK(handleUpdateMember(data.id, data.data));
-      case 'deleteMember': return responseOK(handleDeleteMember(data.id));
-      case 'addTransaction': return responseOK(handleAddTransaction(data.transaction));
-      case 'deleteTransaction': return responseOK(handleDeleteTransaction(data.id, data.memberId));
-      default: return responseOK({ message: "Action not found" });
+    if (action) {
+      const data = contents.data || {};
+      switch (action) {
+        case 'getData': return responseOK(handleGetData());
+        case 'addMember': return responseOK(handleAddMember(data.member));
+        case 'updateMember': return responseOK(handleUpdateMember(data.id, data.data));
+        case 'deleteMember': return responseOK(handleDeleteMember(data.id));
+        case 'addTransaction': return responseOK(handleAddTransaction(data.transaction));
+        case 'deleteTransaction': return responseOK(handleDeleteTransaction(data.id, data.memberId));
+        default: return responseOK({ message: "Action not found" });
+      }
     }
+
+    return responseOK({ message: "No handled events" });
   } catch (err) {
+    logError(err.message);
     return responseError(err.message);
   }
 }
 
-/* --- Dialogflow Fulfillment Handler --- */
+// --- 2. DIALOGFLOW FULFILLMENT LOGIC ---
 
 function handleDialogflowFulfillment(contents) {
-  const intentName = (contents.queryResult.intent.displayName || "").trim().toLowerCase();
-  const payload = contents.originalDetectIntentRequest.payload;
-  
-  if (!payload || !payload.data || !payload.data.source) {
-    return responseDialogflow("กรุณาใช้งานผ่านแอปพลิเคชัน LINE ครับ");
-  }
-  
-  const userId = payload.data.source.userId;
-  const linked = getLinkedMember(userId);
-  
-  if (intentName === 'default welcome intent') {
-    return responseDialogflow("ยินดีต้อนรับสู่ สหกรณ์ตะอาวุน ครับ\nกรุณาส่งเลขบัตรประชาชน 13 หลัก เพื่อลงทะเบียนครับ");
-  }
-  
-  if (!linked) {
-    return responseDialogflow("⚠️ ท่านยังไม่ได้ลงทะเบียนสมาชิก\nกรุณาพิมพ์ *เลขบัตรประชาชน 13 หลัก* เพื่อเริ่มต้นครับ");
-  }
-  
-  const member = findMemberById(linked.memberId);
-  if (!member) return responseDialogflow("❌ ไม่พบข้อมูลสมาชิกในระบบ");
+  try {
+    const queryResult = contents.queryResult;
+    const queryText = (queryResult.queryText || "").trim();
+    const intentName = (queryResult.intent.displayName || "").trim().toLowerCase();
+    const payload = contents.originalDetectIntentRequest ? contents.originalDetectIntentRequest.payload : null;
+    
+    if (!payload || !payload.data || !payload.data.source) {
+      return responseDialogflow("⚠️ กรุณาใช้งานผ่าน LINE เท่านั้นครับ");
+    }
+    
+    const userId = payload.data.source.userId;
+    const linked = getLinkedMember(userId);
 
-  let message = null;
+    // ตรวจสอบ: หากผู้ใช้ส่งเลข 13 หลักมา (เพื่อลงทะเบียนผ่าน Dialogflow)
+    if (/^\d{13}$/.test(queryText)) {
+      const member = findMemberByIdCard(queryText);
+      if (member) {
+        if (linked) unlinkLineUser(userId); // ลบข้อมูลเก่าถ้ามี
+        linkLineUser(userId, member.id, queryText);
+        return responseDialogflow("✅ ลงทะเบียนสำเร็จ!\nสวัสดีคุณ " + member.name + "\nตอนนี้ท่านสามารถเช็คยอดหนี้และเงินออมได้แล้วครับ");
+      } else {
+        return responseDialogflow("❌ ไม่พบเลขบัตรประชาชนนี้ในระบบสมาชิกครับ");
+      }
+    }
+    
+    if (intentName === 'default welcome intent') {
+      return responseDialogflow("ยินดีต้อนรับสู่ สหกรณ์ตะอาวุน ครับ\nกรุณาส่งเลขบัตรประชาชน 13 หลัก เพื่อลงทะเบียนเข้าสู่ระบบครับ");
+    }
+    
+    if (!linked) {
+      return responseDialogflow("⚠️ ท่านยังไม่ได้ลงทะเบียนสมาชิก\nกรุณาพิมพ์ *เลขบัตรประชาชน 13 หลัก* ของท่านเพื่อเริ่มต้นครับ");
+    }
+    
+    const member = findMemberById(linked.memberId);
+    if (!member) return responseDialogflow("❌ ไม่พบข้อมูลสมาชิกในระบบ กรุณาติดต่อเจ้าหน้าที่ครับ");
 
-  switch (intentName) {
-    case 'check_debt':
-      message = { type: "flex", altText: "📈 ข้อมูลยอดหนี้", contents: generateDebtFlex(member) };
-      break;
-    case 'check_shares':
-      message = { type: "flex", altText: "🏛️ ข้อมูลทุนเรือนหุ้น", contents: generateSharesFlex(member, 'shares') };
-      break;
-    case 'check_savings':
-      message = { type: "flex", altText: "💰 ข้อมูลเงินออมทรัพย์", contents: generateSharesFlex(member, 'savings') };
-      break;
-    case 'check_memberinfo':
-      message = { type: "flex", altText: "👤 ข้อมูลส่วนตัวสมาชิก", contents: generateMemberInfoFlex(member) };
-      break;
-    case 'check_history':
-      message = { type: "flex", altText: "📜 ประวัติการชำระเงิน", contents: generateHistoryFlex(member) };
-      break;
-    case 'contact_staff':
+    let message = null;
+
+    // จัดการ Intents ต่างๆ
+    if (intentName === 'check_debt' || queryText === 'ยอดหนี้') {
+      message = { type: "flex", altText: "📈 ยอดหนี้", contents: generateDebtFlex(member) };
+    } else if (intentName === 'check_shares' || queryText === 'หุ้นสะสม') {
+      message = { type: "flex", altText: "🏛️ หุ้นสะสม", contents: generateSharesFlex(member, 'shares') };
+    } else if (intentName === 'check_savings' || queryText === 'เงินออมทรัพย์') {
+      message = { type: "flex", altText: "💰 เงินออม", contents: generateSharesFlex(member, 'savings') };
+    } else if (intentName === 'check_memberinfo' || queryText === 'ข้อมูลสมาชิก') {
+      message = { type: "flex", altText: "👤 ข้อมูลสมาชิก", contents: generateMemberInfoFlex(member) };
+    } else if (intentName === 'check_history' || queryText === 'ประวัติชำระ') {
+      message = { type: "flex", altText: "📜 ประวัติชำระ", contents: generateHistoryFlex(member) };
+    } else if (intentName === 'contact_staff' || queryText === 'ติดต่อเจ้าหน้าที่') {
       message = { type: "text", text: "☎️ ติดต่อเจ้าหน้าที่สหกรณ์\nโทร: 089-595-2329\n(น.ส.นูรีซัน ไพเราะ)" };
-      break;
-    default:
-      message = { type: "text", text: "รับทราบครับ คุณ " + member.name + "\nต้องการทราบข้อมูลด้านใด กดเลือกที่เมนูได้เลยครับ" };
+    } else {
+      message = { type: "text", text: "รับทราบครับ คุณ " + member.name + "\nต้องการทราบข้อมูลด้านไหน เลือกที่เมนูได้เลยครับ" };
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({
+      fulfillmentMessages: [{ payload: { line: message } }]
+    })).setMimeType(ContentService.MimeType.JSON);
+    
+  } catch(err) {
+    logError("Fulfillment Error: " + err.message);
+    return responseDialogflow("เกิดข้อผิดพลาดในการประมวลผล: " + err.message);
   }
-
-  return ContentService.createTextOutput(JSON.stringify({
-    fulfillmentMessages: [{ payload: { line: message } }]
-  })).setMimeType(ContentService.MimeType.JSON);
 }
 
-function responseDialogflow(text) { 
-  return ContentService.createTextOutput(JSON.stringify({ fulfillmentText: text })).setMimeType(ContentService.MimeType.JSON); 
-}
-
-/* --- LINE Webhook --- */
+// --- 3. LINE DIRECT WEBHOOK ---
 
 function handleLineWebhook(data) {
   const event = data.events[0];
   if (!event || !event.replyToken) return responseOK({});
+  
   const userId = event.source.userId;
   const text = (event.message.text || "").trim();
   
+  // ตรวจสอบเลข 13 หลัก (กรณี LINE ยิงตรงมาที่ Apps Script โดยไม่ผ่าน Dialogflow)
   if (/^\d{13}$/.test(text)) {
     const member = findMemberByIdCard(text);
     if (member) {
       if (getLinkedMember(userId)) unlinkLineUser(userId);
       linkLineUser(userId, member.id, text);
-      return replyLine(event.replyToken, [{ type: "text", text: "✅ ลงทะเบียนสำเร็จ!\nยินดีต้อนรับคุณ " + member.name + "\nเช็คยอดหนี้และเงินออมได้ทันทีครับ" }]);
+      return replyLine(event.replyToken, [{ type: "text", text: "✅ ลงทะเบียนสำเร็จ!\nสวัสดีคุณ " + member.name + "\nเช็คยอดหนี้และเงินออมได้ทันทีครับ" }]);
     } else {
-      return replyLine(event.replyToken, [{ type: "text", text: "❌ ไม่พบเลขบัตรนี้ในระบบสมาชิกครับ" }]);
+      return replyLine(event.replyToken, [{ type: "text", text: "❌ ไม่พบเลขบัตรนี้ในระบบสมาชิก" }]);
     }
   }
   return responseOK({});
 }
 
-function replyLine(replyToken, messages) {
-  UrlFetchApp.fetch("https://api.line.me/v2/bot/message/reply", {
-    method: "post", contentType: "application/json",
-    headers: { Authorization: "Bearer " + LINE_ACCESS_TOKEN },
-    payload: JSON.stringify({ replyToken: replyToken, messages: messages }),
-    muteHttpExceptions: true
-  });
-}
-
-/* --- Data Core Logic (Corrected Column Mapping) --- */
+// --- 4. DATA ACCESS FUNCTIONS ---
 
 function handleGetData() {
   const ss = getSS();
@@ -147,46 +155,41 @@ function handleGetData() {
     });
   }
 
-  // อ้างอิงตามรูปภาพ Sheet ของคุณ:
-  // A=0:ID, B=1:Name, C=2:MemberCode, D=3:IDCard, E=4:Phone, F=5:Address
-  // G=6:JoinedDate, H=7:Type, I=8:Shares, J=9:Savings, K=10:HousingDebt
-  // L=11:LandDebt, M=12:GenDebt, N=13:Monthly, O=14:Missed
-  
-  const members = mData.slice(1).map(r => ({
-    id: String(r[0]),
-    name: String(r[1]),
-    memberCode: String(r[2]),
-    personalInfo: {
-      idCard: String(r[3]),
-      phone: String(r[4]),    // แก้จาก r[5] เป็น r[4]
-      address: String(r[5])   // แก้จาก r[4] เป็น r[5]
-    },
-    joinedDate: String(r[6]),
-    memberType: String(r[7]),
-    accumulatedShares: Number(r[8]) || 0,
-    savingsBalance: Number(r[9]) || 0,
-    housingLoanBalance: Number(r[10]) || 0,
-    landLoanBalance: Number(r[11]) || 0,
-    generalLoanBalance: Number(r[12]) || 0,
-    monthlyInstallment: Number(r[13]) || 0, // เพิ่ม N(13)
-    missedInstallments: Number(r[14]) || 0, // O(14)
-    transactions: txMap[String(r[0])] || []
-  }));
-  
-  return { members };
+  return { 
+    members: mData.slice(1).map(r => ({
+      id: String(r[0]),
+      name: String(r[1]),
+      memberCode: String(r[2]),
+      personalInfo: { idCard: String(r[3]), phone: String(r[4]), address: String(r[5]) },
+      accumulatedShares: Number(r[8]) || 0,
+      savingsBalance: Number(r[9]) || 0,
+      housingLoanBalance: Number(r[10]) || 0,
+      landLoanBalance: Number(r[11]) || 0,
+      generalLoanBalance: Number(r[12]) || 0,
+      monthlyInstallment: Number(r[13]) || 0,
+      missedInstallments: Number(r[14]) || 0,
+      transactions: txMap[String(r[0])] || []
+    }))
+  };
 }
 
+// --- 5. HELPERS ---
+
+function getSS() { return SpreadsheetApp.openById(TARGET_SHEET_ID); }
 function getSheet(ss, name) { let sh = ss.getSheetByName(name); if (!sh) sh = ss.insertSheet(name); return sh; }
+function findMemberById(id) { const data = handleGetData(); return data.members.find(m => String(m.id) === String(id)); }
+function findMemberByIdCard(idCard) { const data = handleGetData(); return data.members.find(m => m.personalInfo.idCard.replace(/\D/g,'') === idCard.replace(/\D/g,'')); }
 function getLinkedMember(userId) { const sh = getSheet(getSS(), "LineUsers"); const d = sh.getDataRange().getValues(); for (let i = 1; i < d.length; i++) { if (d[i][0] === userId) return { memberId: d[i][1] }; } return null; }
 function linkLineUser(userId, memberId, idCard) { getSheet(getSS(), "LineUsers").appendRow([userId, memberId, idCard, new Date()]); }
 function unlinkLineUser(userId) { const sh = getSheet(getSS(), "LineUsers"); const d = sh.getDataRange().getValues(); for (let i = 1; i < d.length; i++) { if (d[i][0] === userId) { sh.deleteRow(i + 1); break; } } }
-function findMemberByIdCard(idCard) { return handleGetData().members.find(x => x.personalInfo.idCard.replace(/\D/g,'') === idCard.replace(/\D/g,'')); }
-function findMemberById(id) { return handleGetData().members.find(x => String(x.id) === String(id)); }
-function maskId(id) { if(!id) return "-"; return id.substring(0,1) + "-XXXX-XXXXX-" + id.substring(11,13); }
+function logError(msg) { try { const ss = getSS(); let sh = ss.getSheetByName("ErrorLogs"); if (!sh) sh = ss.insertSheet("ErrorLogs"); sh.appendRow([new Date(), msg]); } catch(e) {} }
 function responseOK(obj) { return ContentService.createTextOutput(JSON.stringify({ status: "success", ...obj })).setMimeType(ContentService.MimeType.JSON); }
 function responseError(msg) { return ContentService.createTextOutput(JSON.stringify({ status: "error", message: msg })).setMimeType(ContentService.MimeType.JSON); }
+function responseDialogflow(text) { return ContentService.createTextOutput(JSON.stringify({ fulfillmentText: text })).setMimeType(ContentService.MimeType.JSON); }
+function replyLine(replyToken, messages) { UrlFetchApp.fetch("https://api.line.me/v2/bot/message/reply", { method: "post", contentType: "application/json", headers: { Authorization: "Bearer " + LINE_ACCESS_TOKEN }, payload: JSON.stringify({ replyToken: replyToken, messages: messages }), muteHttpExceptions: true }); }
+function maskId(id) { if(!id) return "-"; return id.substring(0,1) + "-XXXX-XXXXX-" + id.substring(11,13); }
 
-/* --- UI Flex Messages (No Change) --- */
+// --- 6. FLEX MESSAGES (UI) ---
 
 function generateDebtFlex(member) {
   const total = (member.housingLoanBalance || 0) + (member.landLoanBalance || 0) + (member.generalLoanBalance || 0);
